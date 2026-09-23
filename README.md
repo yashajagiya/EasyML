@@ -1,6 +1,6 @@
 # 🚀 EasyML — Hardware-Accelerated TFLite & YOLO Engine for Android & Jetpack Compose
 
-[![JitPack](https://img.shields.io/badge/JitPack-v1.1.0-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
+[![JitPack](https://img.shields.io/badge/JitPack-v1.5.0-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Min API](https://img.shields.io/badge/Min%20API-24%2B-brightgreen.svg)](https://developer.android.com/about/dashboards)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Coroutines%20Ready-orange.svg)](https://kotlinlang.org)
@@ -11,7 +11,7 @@
 ---
 
 ## 📌 Table of Contents
-- [✨ What's New in v1.1.0](#-whats-new-in-v110)
+- [✨ What's New in v1.5.0](#-whats-new-in-v150)
 - [🧩 Feature & Model Support Matrix](#-feature--model-support-matrix)
 - [💡 Why EasyML?](#-why-easyml)
 - [⚡ Performance Architecture & Coroutines](#-performance-architecture--coroutines)
@@ -35,7 +35,7 @@
 
 ---
 
-## ✨ What's New in v1.1.0
+## ✨ What's New in v1.5.0
 
 - 🎯 **Class-Aware Non-Maximum Suppression (NMS)**: By default, overlapping boxes are suppressed only within the same class (e.g. a "dog" and a "leash" overlapping will no longer erase each other). Class-agnostic mode can be toggled via `classAgnosticNms = true`.
 - ⚡ **YOLO26 Dual-Head & End-to-End Support**:
@@ -113,7 +113,7 @@ In your `app/build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.yashajagiya:easyml:1.1.0")
+    implementation("com.github.yashajagiya:easyml:1.5.0")
 }
 ```
 
@@ -121,7 +121,7 @@ Or via Version Catalog (`gradle/libs.versions.toml`):
 
 ```toml
 [versions]
-easyml = "1.1.0"
+easyml = "1.5.0"
 
 [libraries]
 easyml = { group = "com.github.yashajagiya", name = "easyml", version.ref = "easyml" }
@@ -481,7 +481,7 @@ fun EasyMLCameraView(
 > **A:** EasyML includes dedicated decoders for YOLOv5 (with objectness scores), YOLOv8 / YOLO11 (separate class scores and coordinates), and YOLO26 End-to-End (`[1, 300, 6]`). By default, `AutoDetectionDecoder` inspects the output tensor shape and delegates to the appropriate decoder automatically.
 
 #### Q: Does EasyML suppress overlapping objects of different classes?
-> **A:** No. In v1.1.0, Class-Aware NMS is enabled by default. A person and a backpack overlapping in the frame will each be preserved. If you require class-agnostic suppression, set `classAgnosticNms = true` in your `DetectorConfig`.
+> **A:** No. In v1.5.0, Class-Aware NMS is enabled by default. A person and a backpack overlapping in the frame will each be preserved. If you require class-agnostic suppression, set `classAgnosticNms = true` in your `DetectorConfig`.
 
 #### Q: Can I run INT8 or UINT8 quantized models?
 > **A:** Yes. EasyML automatically inspects the model tensor's quantization parameters (quantization scale and zero point). Integer values are automatically converted to normalized floating-point coordinates and probabilities.

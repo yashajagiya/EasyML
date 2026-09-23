@@ -75,7 +75,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.yashajagiya"
                 artifactId = "easyml"
-                version = "1.1.0"
+                version = "1.5.0"
 
                 pom {
                     name.set("EasyML")
