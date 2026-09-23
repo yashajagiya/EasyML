@@ -92,6 +92,14 @@ object EasyML {
     }
 
     /**
+     * Convenient shortcut alias for [classifier].
+     */
+    fun imageClassifier(
+        context: Context,
+        config: ClassifierConfig.() -> Unit
+    ): ImageClassifier = classifier(context, config)
+
+    /**
      * Create a [RawRunner] with DSL configuration.
      * Universal runner for ANY TFLite model with custom pre/post-processing.
      */
@@ -101,5 +109,23 @@ object EasyML {
     ): RawRunner {
         val cfg = RawConfig().apply(config)
         return RawRunner(context, cfg)
+    }
+
+    /**
+     * Convenient shortcut alias for [raw].
+     */
+    fun rawRunner(
+        context: Context,
+        config: RawConfig.() -> Unit
+    ): RawRunner = raw(context, config)
+
+    /**
+     * Asynchronously load and initialize a [RawRunner] on [Dispatchers.IO].
+     */
+    suspend fun loadRawAsync(
+        context: Context,
+        config: RawConfig.() -> Unit
+    ): RawRunner = withContext(Dispatchers.IO) {
+        raw(context, config)
     }
 }

@@ -88,6 +88,20 @@ class RawRunner internal constructor(
     }
 
     /**
+     * Non-blocking asynchronous inference with ByteBuffers on [Dispatchers.Default].
+     */
+    suspend fun runAsync(input: ByteBuffer, output: ByteBuffer) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        run(input, output)
+    }
+
+    /**
+     * Non-blocking asynchronous inference with multiple inputs and outputs on [Dispatchers.Default].
+     */
+    suspend fun runMultipleAsync(inputs: Array<Any>, outputs: MutableMap<Int, Any>) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        runMultiple(inputs, outputs)
+    }
+
+    /**
      * Get the shape of a specific output tensor.
      */
     fun getOutputShape(index: Int): IntArray = engine.getOutputShape(index)

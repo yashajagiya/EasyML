@@ -256,6 +256,13 @@ class ImageClassifier internal constructor(
         return FloatArray(logits.size) { exps[it] / sumExp }
     }
 
+    /**
+     * Non-blocking asynchronous classification powered by Kotlin Coroutines on [Dispatchers.Default].
+     */
+    suspend fun classifyAsync(bitmap: Bitmap): List<Classification> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        classify(bitmap)
+    }
+
     override fun close() {
         engine.close()
         if (!resizedBitmap.isRecycled) {
