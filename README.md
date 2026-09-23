@@ -1,6 +1,6 @@
 # 🚀 EasyML — Ultra-Fast Zero-Allocation TFLite & YOLO Library for Android in Jetpack Compose
 
-[![JitPack](https://jitpack.io/v/yashajagiya/easyml.svg)](https://jitpack.io/#yashajagiya/easyml)
+[![JitPack](https://img.shields.io/badge/JitPack-v1.0.0-green.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Min API](https://img.shields.io/badge/Min%20API-24%2B-brightgreen.svg)](https://developer.android.com/about/dashboards)
 [![Kotlin](https://img.shields.io/badge/Kotlin-100%25-orange.svg)](https://kotlinlang.org)
