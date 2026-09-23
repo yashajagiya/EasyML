@@ -1,10 +1,14 @@
 # 🚀 EasyML — Ultra-Fast Zero-Allocation TFLite & YOLO Library for Android in Jetpack Compose
 
-[![JitPack](https://img.shields.io/badge/JitPack-v1.0.0-green.svg)](https://jitpack.io/#yashajagiya/easyml)
+[![JitPack](https://img.shields.io/badge/JitPack-v1.0.0--alpha-green.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Min API](https://img.shields.io/badge/Min%20API-24%2B-brightgreen.svg)](https://developer.android.com/about/dashboards)
 [![Kotlin](https://img.shields.io/badge/Kotlin-100%25-orange.svg)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Supported-4285F4.svg)](https://developer.android.com/jetpack/compose)
+
+> [!IMPORTANT]
+> **⚠️ Alpha Release Notice (v1.0.0-alpha)**  
+> **EasyML** is currently in **Alpha stage**. Core features (YOLO detection, Image Classification, CameraX Compose view, and zero-allocation inference) are fully functional and tested on real devices. However, APIs may undergo refinements prior to the v1.0.0 stable release. Community feedback, feature requests, and GitHub issues are highly encouraged!
 
 **EasyML** is an ultra-fast, zero-allocation, hardware-accelerated Machine Learning (TFLite) SDK engineered specifically for **Android** and **Jetpack Compose**. It enables developers to run live **YOLO Object Detection (v5, v8, v11, YOLO26)**, **Image Classification**, and **Custom TFLite Models** in production Android applications with just **5 lines of Kotlin code**.
 
@@ -30,6 +34,7 @@
   - [InferenceDevice Options](#inferencedevice-options)
   - [ModelSource & LabelSource Adapters](#modelsource--labelsource-adapters)
 - [🔬 How EasyML Works Under the Hood](#-how-easyml-works-under-the-hood)
+- [⚠️ Alpha Version Restrictions](#️-alpha-version--known-restrictions--potential-limitations)
 - [❓ Comprehensive Troubleshooting & FAQ](#-comprehensive-troubleshooting--faq)
 - [📄 License](#-license)
 
@@ -567,6 +572,28 @@ LabelSource.StringList(listOf("person", "car", "dog", "cat"))
 │  Scaled Canvas Draw Pass (Corrected for Camera Aspect Ratio)│
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## ⚠️ Alpha Version — Known Restrictions & Potential Limitations
+
+As an active **Alpha release (v1.0.0-alpha)**, please keep the following operational boundaries and potential edge cases in mind when integrating EasyML:
+
+### 1. Model Architecture & Tensor Format Restrictions
+- **YOLO Single-Head Outputs**: `ObjectDetector` is designed to decode standard single-output YOLO tensors (`[1, 84, 8400]` or `[1, 8400, 84]`). Models with multi-head outputs (e.g. separate keypoint/pose estimation branches or instance segmentation masks) require custom post-processing using `EasyML.raw()`.
+- **Single Input Image Tensor**: `ObjectDetector` and `ImageClassifier` expect a single input image tensor (`[1, height, width, 3]`). Multi-modal or multi-input models should be run via `EasyML.raw()`.
+
+### 2. Hardware Acceleration & Device Driver Variations
+- **GPU Delegate Driver Compatibility**: On certain entry-level Android devices or custom Android ROMs with incomplete OpenGL ES 3.1 driver implementations, GPU Delegate initialization may fail. EasyML automatically catches driver exceptions and falls back to CPU execution powered by multi-threaded **XNNPACK ARM NEON SIMD** vector instructions.
+
+### 3. CameraX UI Features (Alpha Status)
+- **Camera Controls**: `<EasyMLCameraView />` currently provides automatic focus, exposure metering, and front/back camera switching (`lensFacing`). Advanced controls such as pinch-to-zoom, tap-to-focus, manual ISO, flash toggling, and video recording are on the roadmap for upcoming beta releases.
+
+### 🚀 Upcoming Roadmap (Beta & v1.0 Stable)
+- 🦴 **Pose Estimation Support**: Skeleton keypoint detection overlay for MoveNet & YOLO-Pose.
+- 🎭 **Instance Segmentation**: Real-time mask rendering for YOLO-Seg models.
+- 🔍 **Interactive Camera Gestures**: Pinch-to-zoom and tap-to-focus support in `<EasyMLCameraView />`.
+- 🎨 **Custom Overlay Styling DSL**: Customizable font, stroke, and color styling for bounding boxes.
 
 ---
 
