@@ -17,6 +17,7 @@ import org.tensorflow.lite.DataType
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.FloatBuffer
 import kotlin.math.max
 import kotlin.math.min
 
@@ -71,6 +72,7 @@ class ObjectDetector internal constructor(
 
     // Pre-allocated ByteBuffers reused every frame to eliminate GC pauses
     private val inputByteBuffer: ByteBuffer
+    private val inputFloatBuffer: FloatBuffer?
     private val outputByteBuffer: ByteBuffer
     private val outputBuffer: FloatArray
     private val outputShape: IntArray
@@ -79,6 +81,7 @@ class ObjectDetector internal constructor(
     private val letterboxBitmap: Bitmap
     private val letterboxCanvas: Canvas
     private val letterboxPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val padPaint = Paint().apply { color = 0xFF808080.toInt() }
     private val pixelArray: IntArray
     private val inputFloatArray: FloatArray?
     private val inputByteArray: ByteArray?
@@ -143,6 +146,7 @@ class ObjectDetector internal constructor(
         inputByteBuffer = ByteBuffer.allocateDirect(1 * totalInputElements * inputBytesPerChannel).apply {
             order(ByteOrder.nativeOrder())
         }
+        inputFloatBuffer = if (isFloatType) inputByteBuffer.asFloatBuffer() else null
 
         inputFloatArray = if (isFloatType) FloatArray(totalInputElements) else null
         inputByteArray = if (!isFloatType) ByteArray(totalInputElements) else null
@@ -170,9 +174,16 @@ class ObjectDetector internal constructor(
      * @param bitmap Input image (resized and letterboxed into pre-allocated memory)
      * @return List of detected objects, sorted by confidence (highest first)
      */
-    fun detect(bitmap: Bitmap): List<Detection> {
+    /**
+     * Run object detection synchronously on a Bitmap.
+     *
+     * @param bitmap Input image (resized and letterboxed into pre-allocated memory)
+     * @param rotationDegrees Optional camera sensor rotation (e.g. 90, 270) handled in a single hardware Skia pass
+     * @return List of detected objects, sorted by confidence (highest first)
+     */
+    fun detect(bitmap: Bitmap, rotationDegrees: Int = 0): List<Detection> {
         val results = ArrayList<Detection>(nms.maxResults)
-        detect(bitmap, results)
+        detect(bitmap, rotationDegrees, results)
         return results
     }
 
@@ -182,22 +193,46 @@ class ObjectDetector internal constructor(
      * Maximizes real-time performance in high-throughput video pipelines by reusing destination memory.
      */
     fun detect(bitmap: Bitmap, outResults: MutableList<Detection>) {
+        detect(bitmap, 0, outResults)
+    }
+
+    /**
+     * Zero-allocation detection overload with hardware matrix rotation.
+     */
+    fun detect(bitmap: Bitmap, rotationDegrees: Int, outResults: MutableList<Detection>) {
         outResults.clear()
         val t0 = System.nanoTime()
 
-        // 1. Preprocessing: Letterbox aspect-ratio preservation
-        val srcWidth = bitmap.width
-        val srcHeight = bitmap.height
+        // 1. Preprocessing: Letterbox aspect-ratio preservation with optional Skia hardware rotation
+        val isRotated = rotationDegrees == 90 || rotationDegrees == 270
+        val srcWidth = if (isRotated) bitmap.height else bitmap.width
+        val srcHeight = if (isRotated) bitmap.width else bitmap.height
         val scale = min(inputWidth.toFloat() / srcWidth, inputHeight.toFloat() / srcHeight)
         val scaledWidth = srcWidth * scale
         val scaledHeight = srcHeight * scale
-        val padX = (inputWidth - scaledWidth) / 2f
-        val padY = (inputHeight - scaledHeight) / 2f
+        val padX = (inputWidth - scaledWidth) * 0.5f
+        val padY = (inputHeight - scaledHeight) * 0.5f
 
-        letterboxCanvas.drawColor(0xFF808080.toInt()) // Standard neutral gray letterbox padding
+        // Smart letterbox fill: only draw border margins if padding is present
+        if (padX > 0f) {
+            letterboxCanvas.drawRect(0f, 0f, padX, inputHeight.toFloat(), padPaint)
+            letterboxCanvas.drawRect(inputWidth - padX, 0f, inputWidth.toFloat(), inputHeight.toFloat(), padPaint)
+        }
+        if (padY > 0f) {
+            letterboxCanvas.drawRect(0f, 0f, inputWidth.toFloat(), padY, padPaint)
+            letterboxCanvas.drawRect(0f, inputHeight - padY, inputWidth.toFloat(), inputHeight.toFloat(), padPaint)
+        }
+
         drawMatrix.reset()
-        drawMatrix.setScale(scale, scale)
-        drawMatrix.postTranslate(padX, padY)
+        if (rotationDegrees != 0) {
+            drawMatrix.postTranslate(-bitmap.width * 0.5f, -bitmap.height * 0.5f)
+            drawMatrix.postRotate(rotationDegrees.toFloat())
+            drawMatrix.postScale(scale, scale)
+            drawMatrix.postTranslate(inputWidth * 0.5f, inputHeight * 0.5f)
+        } else {
+            drawMatrix.setScale(scale, scale)
+            drawMatrix.postTranslate(padX, padY)
+        }
         letterboxCanvas.drawBitmap(bitmap, drawMatrix, letterboxPaint)
 
         // Extract pixels
@@ -207,25 +242,79 @@ class ObjectDetector internal constructor(
         inputByteBuffer.rewind()
         val numPixels = inputWidth * inputHeight
 
-        if (isFloatType && inputFloatArray != null) {
+        if (isFloatType && inputFloatArray != null && inputFloatBuffer != null) {
+            val limit = numPixels - 3
+            var i = 0
             if (isNCHW) {
+                val plane1 = numPixels
                 val plane2 = numPixels * 2
-                for (i in 0 until numPixels) {
-                    val pixel = pixelArray[i]
-                    inputFloatArray[i] = NORM_TABLE[(pixel shr 16) and 0xFF]
-                    inputFloatArray[numPixels + i] = NORM_TABLE[(pixel shr 8) and 0xFF]
-                    inputFloatArray[plane2 + i] = NORM_TABLE[pixel and 0xFF]
+                while (i < limit) {
+                    val p0 = pixelArray[i]
+                    val p1 = pixelArray[i + 1]
+                    val p2 = pixelArray[i + 2]
+                    val p3 = pixelArray[i + 3]
+
+                    inputFloatArray[i] = NORM_TABLE[(p0 ushr 16) and 0xFF]
+                    inputFloatArray[i + 1] = NORM_TABLE[(p1 ushr 16) and 0xFF]
+                    inputFloatArray[i + 2] = NORM_TABLE[(p2 ushr 16) and 0xFF]
+                    inputFloatArray[i + 3] = NORM_TABLE[(p3 ushr 16) and 0xFF]
+
+                    inputFloatArray[plane1 + i] = NORM_TABLE[(p0 ushr 8) and 0xFF]
+                    inputFloatArray[plane1 + i + 1] = NORM_TABLE[(p1 ushr 8) and 0xFF]
+                    inputFloatArray[plane1 + i + 2] = NORM_TABLE[(p2 ushr 8) and 0xFF]
+                    inputFloatArray[plane1 + i + 3] = NORM_TABLE[(p3 ushr 8) and 0xFF]
+
+                    inputFloatArray[plane2 + i] = NORM_TABLE[p0 and 0xFF]
+                    inputFloatArray[plane2 + i + 1] = NORM_TABLE[p1 and 0xFF]
+                    inputFloatArray[plane2 + i + 2] = NORM_TABLE[p2 and 0xFF]
+                    inputFloatArray[plane2 + i + 3] = NORM_TABLE[p3 and 0xFF]
+
+                    i += 4
+                }
+                while (i < numPixels) {
+                    val p = pixelArray[i]
+                    inputFloatArray[i] = NORM_TABLE[(p ushr 16) and 0xFF]
+                    inputFloatArray[plane1 + i] = NORM_TABLE[(p ushr 8) and 0xFF]
+                    inputFloatArray[plane2 + i] = NORM_TABLE[p and 0xFF]
+                    i++
                 }
             } else {
                 var offset = 0
-                for (i in 0 until numPixels) {
-                    val pixel = pixelArray[i]
-                    inputFloatArray[offset++] = NORM_TABLE[(pixel shr 16) and 0xFF]
-                    inputFloatArray[offset++] = NORM_TABLE[(pixel shr 8) and 0xFF]
-                    inputFloatArray[offset++] = NORM_TABLE[pixel and 0xFF]
+                while (i < limit) {
+                    val p0 = pixelArray[i]
+                    val p1 = pixelArray[i + 1]
+                    val p2 = pixelArray[i + 2]
+                    val p3 = pixelArray[i + 3]
+
+                    inputFloatArray[offset] = NORM_TABLE[(p0 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 1] = NORM_TABLE[(p0 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 2] = NORM_TABLE[p0 and 0xFF]
+
+                    inputFloatArray[offset + 3] = NORM_TABLE[(p1 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 4] = NORM_TABLE[(p1 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 5] = NORM_TABLE[p1 and 0xFF]
+
+                    inputFloatArray[offset + 6] = NORM_TABLE[(p2 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 7] = NORM_TABLE[(p2 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 8] = NORM_TABLE[p2 and 0xFF]
+
+                    inputFloatArray[offset + 9] = NORM_TABLE[(p3 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 10] = NORM_TABLE[(p3 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 11] = NORM_TABLE[p3 and 0xFF]
+
+                    offset += 12
+                    i += 4
+                }
+                while (i < numPixels) {
+                    val p = pixelArray[i]
+                    inputFloatArray[offset++] = NORM_TABLE[(p ushr 16) and 0xFF]
+                    inputFloatArray[offset++] = NORM_TABLE[(p ushr 8) and 0xFF]
+                    inputFloatArray[offset++] = NORM_TABLE[p and 0xFF]
+                    i++
                 }
             }
-            inputByteBuffer.asFloatBuffer().put(inputFloatArray)
+            inputFloatBuffer.rewind()
+            inputFloatBuffer.put(inputFloatArray)
         } else if (inputByteArray != null) {
             var offset = 0
             for (i in 0 until numPixels) {
@@ -249,19 +338,18 @@ class ObjectDetector internal constructor(
         // 3. Postprocessing: Read and dequantize tensor
         engine.readOutput(outputByteBuffer, outputBuffer)
 
-        // Decode candidates into reusable pool
-        candidatePool.clear()
-        decoder.decode(outputBuffer, outputShape, inputWidth, inputHeight, confidenceThreshold, candidatePool)
+        // Decode candidates into reusable pool (preserves pre-allocated objects without garbage collection)
+        val candidateCount = decoder.decode(outputBuffer, outputShape, inputWidth, inputHeight, confidenceThreshold, candidatePool)
 
         // Run NMS if the decoder is not already End-to-End NMS-free
         nmsPool.clear()
         if (decoder.isNmsFree) {
-            val count = min(candidatePool.size, nms.maxResults)
+            val count = minOf(candidateCount, nms.maxResults)
             for (i in 0 until count) {
                 nmsPool.add(candidatePool[i])
             }
         } else {
-            nms.process(candidatePool, nmsPool)
+            nms.process(candidatePool, candidateCount, nmsPool)
         }
 
         // Unmap coordinates from model space to original image space
@@ -304,15 +392,28 @@ class ObjectDetector internal constructor(
     /**
      * Non-blocking asynchronous detection powered by Kotlin Coroutines on [Dispatchers.Default].
      */
-    suspend fun detectAsync(bitmap: Bitmap): List<Detection> = withContext(Dispatchers.Default) {
-        detect(bitmap)
+    suspend fun detectAsync(bitmap: Bitmap, rotationDegrees: Int = 0): List<Detection> = withContext(Dispatchers.Default) {
+        val results = ArrayList<Detection>(nms.maxResults)
+        detect(bitmap, rotationDegrees, results)
+        results
+    }
+
+    /**
+     * Non-blocking asynchronous detection populating a reusable [MutableList] on [Dispatchers.Default].
+     */
+    suspend fun detectAsync(
+        bitmap: Bitmap,
+        rotationDegrees: Int = 0,
+        outResults: MutableList<Detection>
+    ) = withContext(Dispatchers.Default) {
+        detect(bitmap, rotationDegrees, outResults)
     }
 
     /**
      * Non-blocking asynchronous detection populating a reusable [MutableList] on [Dispatchers.Default].
      */
     suspend fun detectAsync(bitmap: Bitmap, outResults: MutableList<Detection>) = withContext(Dispatchers.Default) {
-        detect(bitmap, outResults)
+        detect(bitmap, 0, outResults)
     }
 
     /** Get the primary model input dimension (backward compatibility). */

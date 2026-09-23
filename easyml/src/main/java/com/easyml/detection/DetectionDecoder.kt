@@ -67,7 +67,7 @@ interface DetectionDecoder {
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    )
+    ): Int
 }
 
 /**
@@ -89,18 +89,18 @@ class Yolo26EndToEndDecoder(
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    ) {
+    ): Int {
         val numDetections = when (shape.size) {
             3 -> shape[1] // [1, K, 6]
             2 -> shape[0] // [K, 6]
-            else -> return
+            else -> return 0
         }
         val attributes = when (shape.size) {
             3 -> shape[2]
             2 -> shape[1]
             else -> 6
         }
-        if (attributes < 6) return
+        if (attributes < 6) return 0
 
         var outIndex = 0
         for (i in 0 until numDetections) {
@@ -136,6 +136,7 @@ class Yolo26EndToEndDecoder(
             }
             outIndex++
         }
+        return outIndex
     }
 }
 
@@ -151,6 +152,17 @@ class YoloV8Decoder(
     private val coordinateFormat: CoordinateFormat = CoordinateFormat.AUTO
 ) : DetectionDecoder {
 
+    // Pre-allocated reusable arrays to eliminate CPU cache thrashing during transposed decoding
+    private var maxScores = FloatArray(8400)
+    private var maxClasses = IntArray(8400)
+
+    private fun ensureCapacity(numDetections: Int) {
+        if (maxScores.size < numDetections) {
+            maxScores = FloatArray(numDetections)
+            maxClasses = IntArray(numDetections)
+        }
+    }
+
     override fun decode(
         output: FloatArray,
         shape: IntArray,
@@ -158,8 +170,8 @@ class YoloV8Decoder(
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    ) {
-        if (isTransposed) {
+    ): Int {
+        return if (isTransposed) {
             decodeTransposed(output, shape, modelWidth, modelHeight, confidenceThreshold, outCandidates)
         } else {
             decodeStandard(output, shape, modelWidth, modelHeight, confidenceThreshold, outCandidates)
@@ -173,28 +185,34 @@ class YoloV8Decoder(
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    ) {
+    ): Int {
         val numAttributes = shape[1] // 4 + numClasses
         val numDetections = shape[2] // e.g. 8400
         val numClasses = numAttributes - 4
-        if (numClasses <= 0 || numDetections <= 0) return
+        if (numClasses <= 0 || numDetections <= 0) return 0
+
+        ensureCapacity(numDetections)
+        java.util.Arrays.fill(maxScores, 0, numDetections, 0f)
+
+        // Cache-optimized sequential streaming: iterate classes on outer loop,
+        // streaming inner loop contiguously through memory with 100% L1/L2 prefetcher utilization
+        for (c in 0 until numClasses) {
+            val rowOffset = (4 + c) * numDetections
+            for (i in 0 until numDetections) {
+                val score = output[rowOffset + i]
+                if (score > maxScores[i]) {
+                    maxScores[i] = score
+                    maxClasses[i] = c
+                }
+            }
+        }
 
         val row2 = numDetections * 2
         val row3 = numDetections * 3
 
         var outIndex = 0
         for (i in 0 until numDetections) {
-            var maxScore = 0f
-            var maxClass = 0
-
-            for (c in 0 until numClasses) {
-                val score = output[(4 + c) * numDetections + i]
-                if (score > maxScore) {
-                    maxScore = score
-                    maxClass = c
-                }
-            }
-
+            val maxScore = maxScores[i]
             if (maxScore < confidenceThreshold) continue
 
             var cx = output[i]
@@ -220,12 +238,13 @@ class YoloV8Decoder(
             val bottom = cy + halfH
 
             if (outIndex < outCandidates.size) {
-                outCandidates[outIndex].set(left, top, right, bottom, maxClass, maxScore)
+                outCandidates[outIndex].set(left, top, right, bottom, maxClasses[i], maxScore)
             } else {
-                outCandidates.add(DetectionCandidate(left, top, right, bottom, maxClass, maxScore))
+                outCandidates.add(DetectionCandidate(left, top, right, bottom, maxClasses[i], maxScore))
             }
             outIndex++
         }
+        return outIndex
     }
 
     private fun decodeStandard(
@@ -235,11 +254,11 @@ class YoloV8Decoder(
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    ) {
+    ): Int {
         val numDetections = if (shape.size == 3) shape[1] else shape[0]
         val numAttributes = if (shape.size == 3) shape[2] else shape[1]
         val numClasses = numAttributes - 4
-        if (numClasses <= 0 || numDetections <= 0) return
+        if (numClasses <= 0 || numDetections <= 0) return 0
 
         var outIndex = 0
         for (i in 0 until numDetections) {
@@ -286,6 +305,7 @@ class YoloV8Decoder(
             }
             outIndex++
         }
+        return outIndex
     }
 }
 
@@ -307,12 +327,12 @@ class YoloV5Decoder(
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    ) {
+    ): Int {
         val numDetections = if (shape.size == 3) shape[1] else shape[0]
         val numAttributes = if (shape.size == 3) shape[2] else shape[1]
         val classOffset = if (hasObjectness) 5 else 4
         val numClasses = numAttributes - classOffset
-        if (numClasses <= 0 || numDetections <= 0) return
+        if (numClasses <= 0 || numDetections <= 0) return 0
 
         var outIndex = 0
         for (i in 0 until numDetections) {
@@ -361,6 +381,7 @@ class YoloV5Decoder(
             }
             outIndex++
         }
+        return outIndex
     }
 }
 
@@ -381,9 +402,9 @@ class AutoDetectionDecoder : DetectionDecoder {
         modelHeight: Int,
         confidenceThreshold: Float,
         outCandidates: MutableList<DetectionCandidate>
-    ) {
+    ): Int {
         val decoder = resolvedDecoder ?: resolveDecoder(shape).also { resolvedDecoder = it }
-        decoder.decode(output, shape, modelWidth, modelHeight, confidenceThreshold, outCandidates)
+        return decoder.decode(output, shape, modelWidth, modelHeight, confidenceThreshold, outCandidates)
     }
 
     private fun resolveDecoder(shape: IntArray): DetectionDecoder {

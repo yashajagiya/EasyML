@@ -21,6 +21,7 @@ class DetectionSmoother(
 ) {
 
     private var previousDetections: List<Detection> = emptyList()
+    private val smoothedList = ArrayList<Detection>(30)
 
     /**
      * Smooth detection bounding boxes against the previous frame.
@@ -37,27 +38,39 @@ class DetectionSmoother(
         val alpha = smoothingFactor.coerceIn(0.01f, 1f)
         val invAlpha = 1f - alpha
 
-        val smoothed = newDetections.map { newDet ->
-            val prevDet = previousDetections.firstOrNull { prev ->
-                prev.labelIndex == newDet.labelIndex &&
+        smoothedList.clear()
+        val n = newDetections.size
+        val prevSize = previousDetections.size
+
+        for (i in 0 until n) {
+            val newDet = newDetections[i]
+            var matchedPrev: Detection? = null
+
+            for (j in 0 until prevSize) {
+                val prev = previousDetections[j]
+                if (prev.labelIndex == newDet.labelIndex &&
                     calculateIoU(prev.boundingBox, newDet.boundingBox) > iouMatchThreshold
+                ) {
+                    matchedPrev = prev
+                    break
+                }
             }
 
-            if (prevDet != null) {
+            if (matchedPrev != null) {
                 val smoothedBox = RectF(
-                    newDet.boundingBox.left * alpha + prevDet.boundingBox.left * invAlpha,
-                    newDet.boundingBox.top * alpha + prevDet.boundingBox.top * invAlpha,
-                    newDet.boundingBox.right * alpha + prevDet.boundingBox.right * invAlpha,
-                    newDet.boundingBox.bottom * alpha + prevDet.boundingBox.bottom * invAlpha
+                    newDet.boundingBox.left * alpha + matchedPrev.boundingBox.left * invAlpha,
+                    newDet.boundingBox.top * alpha + matchedPrev.boundingBox.top * invAlpha,
+                    newDet.boundingBox.right * alpha + matchedPrev.boundingBox.right * invAlpha,
+                    newDet.boundingBox.bottom * alpha + matchedPrev.boundingBox.bottom * invAlpha
                 )
-                newDet.copy(boundingBox = smoothedBox)
+                smoothedList.add(newDet.copy(boundingBox = smoothedBox))
             } else {
-                newDet
+                smoothedList.add(newDet)
             }
         }
 
-        previousDetections = smoothed
-        return smoothed
+        previousDetections = ArrayList(smoothedList)
+        return smoothedList
     }
 
     /**
@@ -65,6 +78,7 @@ class DetectionSmoother(
      */
     fun reset() {
         previousDetections = emptyList()
+        smoothedList.clear()
     }
 
     private fun calculateIoU(a: RectF, b: RectF): Float {
@@ -73,11 +87,12 @@ class DetectionSmoother(
         val intersectRight = min(a.right, b.right)
         val intersectBottom = min(a.bottom, b.bottom)
 
-        val intersectWidth = max(0f, intersectRight - intersectLeft)
-        val intersectHeight = max(0f, intersectBottom - intersectTop)
-        val intersectArea = intersectWidth * intersectHeight
-        if (intersectArea <= 0f) return 0f
+        val intersectWidth = intersectRight - intersectLeft
+        if (intersectWidth <= 0f) return 0f
+        val intersectHeight = intersectBottom - intersectTop
+        if (intersectHeight <= 0f) return 0f
 
+        val intersectArea = intersectWidth * intersectHeight
         val aArea = (a.right - a.left) * (a.bottom - a.top)
         val bArea = (b.right - b.left) * (b.bottom - b.top)
         val unionArea = aArea + bArea - intersectArea

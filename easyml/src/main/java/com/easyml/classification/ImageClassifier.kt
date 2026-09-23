@@ -13,6 +13,7 @@ import org.tensorflow.lite.DataType
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.FloatBuffer
 import kotlin.math.exp
 import androidx.core.graphics.createBitmap
 
@@ -52,7 +53,11 @@ class ImageClassifier internal constructor(
 
     // Pre-allocated direct ByteBuffers reused every frame — zero allocations during inference!
     private val inputByteBuffer: ByteBuffer
+    private val inputFloatBuffer: FloatBuffer?
+    private val inputFloatArray: FloatArray?
+    private val inputByteArray: ByteArray?
     private val outputByteBuffer: ByteBuffer
+    private val outputFloatBuffer: FloatBuffer
     private val outputBuffer: FloatArray
 
     // Pre-allocated drawing structures for resizing
@@ -96,11 +101,16 @@ class ImageClassifier internal constructor(
         outputByteBuffer = ByteBuffer.allocateDirect(numClasses * 4).apply {
             order(ByteOrder.nativeOrder())
         }
+        outputFloatBuffer = outputByteBuffer.asFloatBuffer()
 
         val bytesPerChannel = if (isFloatType) 4 else 1
-        inputByteBuffer = ByteBuffer.allocateDirect(1 * inputHeight * inputWidth * channels * bytesPerChannel).apply {
+        val totalInputElements = inputHeight * inputWidth * channels
+        inputByteBuffer = ByteBuffer.allocateDirect(1 * totalInputElements * bytesPerChannel).apply {
             order(ByteOrder.nativeOrder())
         }
+        inputFloatBuffer = if (isFloatType) inputByteBuffer.asFloatBuffer() else null
+        inputFloatArray = if (isFloatType) FloatArray(totalInputElements) else null
+        inputByteArray = if (!isFloatType) ByteArray(totalInputElements) else null
 
         resizedBitmap = createBitmap(inputWidth, inputHeight)
         resizeCanvas = Canvas(resizedBitmap)
@@ -129,44 +139,89 @@ class ImageClassifier internal constructor(
 
         // 3. Fill input buffer
         inputByteBuffer.rewind()
-        if (isNCHW) {
-            if (isFloatType) {
-                val inv255 = 1f / 255f
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
+        val numPixels = inputWidth * inputHeight
+
+        if (isFloatType && inputFloatArray != null && inputFloatBuffer != null) {
+            val limit = numPixels - 3
+            var i = 0
+            if (isNCHW) {
+                val plane1 = numPixels
+                val plane2 = numPixels * 2
+                while (i < limit) {
+                    val p0 = pixelArray[i]
+                    val p1 = pixelArray[i + 1]
+                    val p2 = pixelArray[i + 2]
+                    val p3 = pixelArray[i + 3]
+
+                    inputFloatArray[i] = NORM_TABLE[(p0 ushr 16) and 0xFF]
+                    inputFloatArray[i + 1] = NORM_TABLE[(p1 ushr 16) and 0xFF]
+                    inputFloatArray[i + 2] = NORM_TABLE[(p2 ushr 16) and 0xFF]
+                    inputFloatArray[i + 3] = NORM_TABLE[(p3 ushr 16) and 0xFF]
+
+                    inputFloatArray[plane1 + i] = NORM_TABLE[(p0 ushr 8) and 0xFF]
+                    inputFloatArray[plane1 + i + 1] = NORM_TABLE[(p1 ushr 8) and 0xFF]
+                    inputFloatArray[plane1 + i + 2] = NORM_TABLE[(p2 ushr 8) and 0xFF]
+                    inputFloatArray[plane1 + i + 3] = NORM_TABLE[(p3 ushr 8) and 0xFF]
+
+                    inputFloatArray[plane2 + i] = NORM_TABLE[p0 and 0xFF]
+                    inputFloatArray[plane2 + i + 1] = NORM_TABLE[p1 and 0xFF]
+                    inputFloatArray[plane2 + i + 2] = NORM_TABLE[p2 and 0xFF]
+                    inputFloatArray[plane2 + i + 3] = NORM_TABLE[p3 and 0xFF]
+
+                    i += 4
                 }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
-                }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+                while (i < numPixels) {
+                    val p = pixelArray[i]
+                    inputFloatArray[i] = NORM_TABLE[(p ushr 16) and 0xFF]
+                    inputFloatArray[plane1 + i] = NORM_TABLE[(p ushr 8) and 0xFF]
+                    inputFloatArray[plane2 + i] = NORM_TABLE[p and 0xFF]
+                    i++
                 }
             } else {
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
+                var offset = 0
+                while (i < limit) {
+                    val p0 = pixelArray[i]
+                    val p1 = pixelArray[i + 1]
+                    val p2 = pixelArray[i + 2]
+                    val p3 = pixelArray[i + 3]
+
+                    inputFloatArray[offset] = NORM_TABLE[(p0 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 1] = NORM_TABLE[(p0 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 2] = NORM_TABLE[p0 and 0xFF]
+
+                    inputFloatArray[offset + 3] = NORM_TABLE[(p1 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 4] = NORM_TABLE[(p1 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 5] = NORM_TABLE[p1 and 0xFF]
+
+                    inputFloatArray[offset + 6] = NORM_TABLE[(p2 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 7] = NORM_TABLE[(p2 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 8] = NORM_TABLE[p2 and 0xFF]
+
+                    inputFloatArray[offset + 9] = NORM_TABLE[(p3 ushr 16) and 0xFF]
+                    inputFloatArray[offset + 10] = NORM_TABLE[(p3 ushr 8) and 0xFF]
+                    inputFloatArray[offset + 11] = NORM_TABLE[p3 and 0xFF]
+
+                    offset += 12
+                    i += 4
                 }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
-                }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put((pixel and 0xFF).toByte())
+                while (i < numPixels) {
+                    val p = pixelArray[i]
+                    inputFloatArray[offset++] = NORM_TABLE[(p ushr 16) and 0xFF]
+                    inputFloatArray[offset++] = NORM_TABLE[(p ushr 8) and 0xFF]
+                    inputFloatArray[offset++] = NORM_TABLE[p and 0xFF]
+                    i++
                 }
             }
-        } else {
-            if (isFloatType) {
-                val inv255 = 1f / 255f
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
-                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
-                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
-                }
-            } else {
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
-                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
-                    inputByteBuffer.put((pixel and 0xFF).toByte())
-                }
+            inputFloatBuffer.rewind()
+            inputFloatBuffer.put(inputFloatArray)
+        } else if (inputByteArray != null) {
+            var offset = 0
+            for (pixel in pixelArray) {
+                inputByteArray[offset++] = ((pixel ushr 16) and 0xFF).toByte()
+                inputByteArray[offset++] = ((pixel ushr 8) and 0xFF).toByte()
+                inputByteArray[offset++] = (pixel and 0xFF).toByte()
             }
+            inputByteBuffer.put(inputByteArray)
         }
         inputByteBuffer.rewind()
 
@@ -174,9 +229,9 @@ class ImageClassifier internal constructor(
         outputByteBuffer.rewind()
         engine.run(inputByteBuffer, outputByteBuffer)
 
-        // 5. Transfer outputs
-        outputByteBuffer.rewind()
-        outputByteBuffer.asFloatBuffer().get(outputBuffer)
+        // 5. Transfer outputs using pre-allocated FloatBuffer
+        outputFloatBuffer.rewind()
+        outputFloatBuffer.get(outputBuffer)
 
         // 6. Apply softmax
         val softmaxed = softmax(outputBuffer)
@@ -207,5 +262,9 @@ class ImageClassifier internal constructor(
         if (!resizedBitmap.isRecycled) {
             resizedBitmap.recycle()
         }
+    }
+
+    companion object {
+        private val NORM_TABLE = FloatArray(256) { it / 255f }
     }
 }

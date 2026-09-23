@@ -67,4 +67,23 @@ class NonMaxSuppressionTest {
         val c = DetectionCandidate(200f, 200f, 300f, 300f)
         assertEquals(0.0f, nms.calculateIoU(a, c), 0.001f)
     }
+
+    @Test
+    fun testPrimitiveQuicksort_withCountParameter() {
+        val nms = NonMaxSuppression(iouThreshold = 0.5f, maxResults = 5)
+        val pool = listOf(
+            DetectionCandidate(0f, 0f, 10f, 10f, confidence = 0.3f),
+            DetectionCandidate(20f, 20f, 30f, 30f, confidence = 0.9f),
+            DetectionCandidate(40f, 40f, 50f, 50f, confidence = 0.7f),
+            DetectionCandidate(60f, 60f, 70f, 70f, confidence = 0.99f) // past count
+        )
+        val outKept = mutableListOf<DetectionCandidate>()
+        // Only process first 3 candidates
+        nms.process(pool, count = 3, outKept)
+
+        assertEquals(3, outKept.size)
+        assertEquals(0.9f, outKept[0].confidence, 0.001f)
+        assertEquals(0.7f, outKept[1].confidence, 0.001f)
+        assertEquals(0.3f, outKept[2].confidence, 0.001f)
+    }
 }

@@ -45,6 +45,10 @@ internal class EasyMLAnalyzer(
     private var lastAnalyzedFrameTime = 0L
     private var frameCount = 0
 
+    // Pre-allocated reusable structures to eliminate per-frame heap churn
+    private var reusableBitmap: android.graphics.Bitmap? = null
+    private val reusableResults = ArrayList<Detection>(20)
+
     override fun analyze(imageProxy: ImageProxy) {
         val currentTime = System.currentTimeMillis()
 
@@ -66,18 +70,43 @@ internal class EasyMLAnalyzer(
         lastAnalyzedFrameTime = currentTime
 
         try {
-            // Convert CameraX frame to Bitmap
-            val bitmap = ImageUtils.imageProxyToBitmap(imageProxy)
-            val imageWidth = bitmap.width
-            val imageHeight = bitmap.height
+            val rotation = imageProxy.imageInfo.rotationDegrees
+            val isRotated = rotation == 90 || rotation == 270
+            val imageWidth = if (isRotated) imageProxy.height else imageProxy.width
+            val imageHeight = if (isRotated) imageProxy.width else imageProxy.height
 
-            // Run detection
-            val rawDetections = detector.detect(bitmap)
-            val detections = smoother?.update(rawDetections) ?: rawDetections
+            // Zero-allocation frame conversion:
+            // Fast-path: When rowStride matches width * 4, copy direct native buffer into reusable bitmap
+            val plane = imageProxy.planes[0]
+            val buffer = plane.buffer
+            buffer.rewind()
+            val w = imageProxy.width
+            val h = imageProxy.height
+
+            if (reusableBitmap == null || reusableBitmap?.width != w || reusableBitmap?.height != h) {
+                reusableBitmap?.recycle()
+                reusableBitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            }
+
+            val bitmap: android.graphics.Bitmap
+            val needsRecycle: Boolean
+            if (plane.pixelStride == 4 && plane.rowStride == w * 4) {
+                reusableBitmap!!.copyPixelsFromBuffer(buffer)
+                bitmap = reusableBitmap!!
+                needsRecycle = false
+            } else {
+                bitmap = imageProxy.toBitmap()
+                needsRecycle = true
+            }
+
+            // Run detection with native Skia rotation handling (zero intermediate rotated bitmap!)
+            detector.detect(bitmap, rotation, reusableResults)
+            val detections = smoother?.update(reusableResults) ?: reusableResults
             val metrics = detector.lastMetrics
 
-            // Recycle bitmap
-            bitmap.recycle()
+            if (needsRecycle) {
+                bitmap.recycle()
+            }
 
             // Report results
             onResults(detections, imageWidth, imageHeight)

@@ -21,48 +21,113 @@ class NonMaxSuppression(
     val classAgnostic: Boolean = false
 ) {
 
+    // Pre-allocated primitive scratch arrays to eliminate heap allocations during NMS
+    private val indexPool = IntArray(300)
+    private val suppressed = BooleanArray(300)
+    private val boxAreas = FloatArray(300)
+
     /**
      * Run Non-Maximum Suppression on candidates and populate the output list without extra heap allocations.
+     *
+     * @param candidates Detection candidates pool
+     * @param outKept Destination list for kept detections
      */
     fun process(
         candidates: List<DetectionCandidate>,
         outKept: MutableList<DetectionCandidate>
     ) {
-        outKept.clear()
-        if (candidates.isEmpty()) return
+        process(candidates, candidates.size, outKept)
+    }
 
-        // Sort descending by confidence, capping at top 300 to bound worst-case O(N^2) comparison
-        val count = min(candidates.size, 300)
-        val sortedIndices = Array(count) { it }
-        // Sort indices based on candidate confidence
-        sortedIndices.sortWith { a, b ->
-            candidates[b].confidence.compareTo(candidates[a].confidence)
+    /**
+     * Run Non-Maximum Suppression on candidates and populate the output list without extra heap allocations.
+     *
+     * @param candidates Detection candidates pool
+     * @param count Number of active candidates in the pool
+     * @param outKept Destination list for kept detections
+     */
+    fun process(
+        candidates: List<DetectionCandidate>,
+        count: Int,
+        outKept: MutableList<DetectionCandidate>
+    ) {
+        outKept.clear()
+        if (count <= 0 || candidates.isEmpty()) return
+
+        val n = minOf(count, candidates.size, 300)
+        for (i in 0 until n) {
+            indexPool[i] = i
+            suppressed[i] = false
+            val c = candidates[i]
+            val w = c.right - c.left
+            val h = c.bottom - c.top
+            boxAreas[i] = if (w > 0f && h > 0f) w * h else 0f
         }
 
-        val suppressed = BooleanArray(count)
+        // In-place primitive quicksort on IntArray (zero boxing, zero lambda allocations)
+        sortIndices(indexPool, 0, n - 1, candidates)
 
-        for (i in 0 until count) {
-            val idxI = sortedIndices[i]
+        for (i in 0 until n) {
             if (suppressed[i]) continue
 
+            val idxI = indexPool[i]
             val current = candidates[idxI]
+            val currentArea = boxAreas[idxI]
             outKept.add(current)
             if (outKept.size >= maxResults) break
 
-            for (j in i + 1 until count) {
+            for (j in i + 1 until n) {
                 if (suppressed[j]) continue
-                val idxJ = sortedIndices[j]
+                val idxJ = indexPool[j]
                 val other = candidates[idxJ]
 
                 // Class-aware check: only suppress if same class or classAgnostic is enabled
                 val shouldCompare = classAgnostic || current.labelIndex == other.labelIndex
                 if (shouldCompare) {
-                    if (calculateIoU(current, other) > iouThreshold) {
+                    val intersectLeft = max(current.left, other.left)
+                    val intersectTop = max(current.top, other.top)
+                    val intersectRight = min(current.right, other.right)
+                    val intersectBottom = min(current.bottom, other.bottom)
+
+                    val intersectWidth = intersectRight - intersectLeft
+                    if (intersectWidth <= 0f) continue
+
+                    val intersectHeight = intersectBottom - intersectTop
+                    if (intersectHeight <= 0f) continue
+
+                    val intersectArea = intersectWidth * intersectHeight
+                    val otherArea = boxAreas[idxJ]
+                    val unionArea = currentArea + otherArea - intersectArea
+
+                    if (unionArea > 0f && (intersectArea / unionArea) > iouThreshold) {
                         suppressed[j] = true
                     }
                 }
             }
         }
+    }
+
+    /**
+     * In-place quicksort on primitive int indices sorting candidates by descending confidence.
+     */
+    private fun sortIndices(indices: IntArray, low: Int, high: Int, candidates: List<DetectionCandidate>) {
+        if (low >= high) return
+        val pivotConf = candidates[indices[(low + high) ushr 1]].confidence
+        var i = low
+        var j = high
+        while (i <= j) {
+            while (candidates[indices[i]].confidence > pivotConf) i++
+            while (candidates[indices[j]].confidence < pivotConf) j--
+            if (i <= j) {
+                val temp = indices[i]
+                indices[i] = indices[j]
+                indices[j] = temp
+                i++
+                j--
+            }
+        }
+        if (low < j) sortIndices(indices, low, j, candidates)
+        if (i < high) sortIndices(indices, i, high, candidates)
     }
 
     /**
