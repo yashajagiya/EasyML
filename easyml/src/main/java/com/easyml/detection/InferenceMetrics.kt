@@ -1,5 +1,8 @@
 package com.easyml.detection
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
 /**
  * Granular latency metrics for the object detection pipeline measured via high-precision [System.nanoTime].
  *
@@ -11,6 +14,7 @@ package com.easyml.detection
  * @param postprocessMs Duration of output tensor decoding, coordinate unmapping, and NMS in milliseconds
  * @param totalMs Total pipeline latency from input Bitmap to final Detection list in milliseconds
  */
+@Serializable
 data class InferenceMetrics(
     val preprocessMs: Double = 0.0,
     val inferenceMs: Double = 0.0,
@@ -24,4 +28,16 @@ data class InferenceMetrics(
     override fun toString(): String =
         "InferenceMetrics(prep=%.1fms, inf=%.1fms, post=%.1fms, total=%.1fms, fps=%.1f)"
             .format(preprocessMs, inferenceMs, postprocessMs, totalMs, fps)
+
+    /** Serialize these metrics to a JSON string */
+    fun toJson(json: Json = defaultJson): String = json.encodeToString(serializer(), this)
+
+    companion object {
+        private val defaultJson = Json { ignoreUnknownKeys = true; prettyPrint = false }
+
+        /** Parse [InferenceMetrics] from a JSON string */
+        fun fromJson(jsonString: String, json: Json = defaultJson): InferenceMetrics =
+            json.decodeFromString(serializer(), jsonString)
+    }
 }
+

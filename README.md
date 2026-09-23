@@ -1,6 +1,6 @@
 # 🚀 EasyML — Hardware-Accelerated TFLite & YOLO Engine for Android & Jetpack Compose
 
-[![JitPack](https://img.shields.io/badge/JitPack-v1.5.0-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
+[![JitPack](https://img.shields.io/badge/JitPack-v1.6.0-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Min API](https://img.shields.io/badge/Min%20API-24%2B-brightgreen.svg)](https://developer.android.com/about/dashboards)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Coroutines%20Ready-orange.svg)](https://kotlinlang.org)
@@ -11,7 +11,7 @@
 ---
 
 ## 📌 Table of Contents
-- [✨ What's New in v1.5.0](#-whats-new-in-v150)
+- [✨ What's New in v1.6.0](#-whats-new-in-v160)
 - [🧩 Feature & Model Support Matrix](#-feature--model-support-matrix)
 - [💡 Why EasyML?](#-why-easyml)
 - [⚡ Performance Architecture & Coroutines](#-performance-architecture--coroutines)
@@ -25,6 +25,7 @@
   - [5. Microsecond Profiling via `InferenceMetrics`](#5-microsecond-profiling-via-inferencemetrics)
   - [6. Temporal Bounding Box Smoothing (`DetectionSmoother`)](#6-temporal-bounding-box-smoothing-detectionsmoother)
   - [7. Image Classification & Custom TFLite Models](#7-image-classification--custom-tflite-models)
+  - [8. JSON Serialization & Export (`kotlinx.serialization`)](#8-json-serialization--export-kotlinxserialization)
 - [🛠️ API Reference](#️-api-reference)
   - [DetectorConfig DSL](#detectorconfig-dsl)
   - [EasyMLCameraView Composable](#easymlcameraview-composable)
@@ -35,7 +36,17 @@
 
 ---
 
-## ✨ What's New in v1.5.0
+## ✨ What's New in v1.6.0
+
+- 📦 **Official `kotlinx.serialization` Support**:
+  - `Detection`, `DetectionList`, `Classification`, and `InferenceMetrics` are now `@Serializable`.
+  - Added dedicated `RectFSerializer` for Android framework `android.graphics.RectF` bounding box coordinates.
+  - Added convenient `.toJson()` and `.fromJson(...)` extension methods for direct export over WebSockets, REST APIs, or local disk.
+  - Added `LabelSource.JsonAsset` and `LabelSource.JsonString` supporting both JSON arrays `["cat", "dog"]` and index-mapped objects `{"0": "cat", "1": "dog"}`.
+- 🛠️ **Modern CameraX & TFLite API Cleanups**:
+  - Migrated CameraX frame downscaling from deprecated `setTargetResolution` to modern `ResolutionSelector` & `ResolutionStrategy`.
+  - Migrated GPU acceleration from deprecated `GpuDelegate.Options` to canonical `GpuDelegateFactory.Options`.
+  - Cleaned up inspection warnings, redundant qualifiers, and spellchecker false positives.
 
 - 🎯 **Class-Aware Non-Maximum Suppression (NMS)**: By default, overlapping boxes are suppressed only within the same class (e.g. a "dog" and a "leash" overlapping will no longer erase each other). Class-agnostic mode can be toggled via `classAgnosticNms = true`.
 - ⚡ **YOLO26 Dual-Head & End-to-End Support**:
@@ -383,6 +394,45 @@ val runner = EasyML.raw(context) {
 
 runner.run(inputDirectByteBuffer, outputDirectByteBuffer)
 runner.close()
+```
+
+---
+
+### 8. JSON Serialization & Export (`kotlinx.serialization`)
+
+EasyML includes built-in `kotlinx.serialization` support for exporting inference results, logging telemetry, and loading JSON labels.
+
+#### Export Detections to JSON (REST API / WebSocket / Disk):
+```kotlin
+val detections: List<Detection> = detector.detect(bitmap)
+
+// Serialize List<Detection> or single Detection
+val jsonString = detections.toJson()
+
+// Or serialize DetectionList
+val detectionList = detections.toDetectionList()
+val jsonString = detectionList.toJson()
+
+// Deserialize back to Detection objects
+val restoredDetections = Detection.fromJsonList(jsonString)
+```
+
+#### Export Inference Latency Metrics:
+```kotlin
+detector.lastInferenceMetrics?.let { metrics ->
+    val metricsJson = metrics.toJson()
+    // Send to Datadog, Firebase, or custom analytics
+}
+```
+
+#### Load JSON Label Files:
+```kotlin
+// Load labels from JSON array: ["cat", "dog", "car"]
+// or index-mapped JSON object: {"0": "cat", "1": "dog"}
+EasyML.detector(context) {
+    model = ModelSource.Asset("yolov8n.tflite")
+    labels = LabelSource.JsonAsset("coco_classes.json")
+}
 ```
 
 ---

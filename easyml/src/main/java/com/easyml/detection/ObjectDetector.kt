@@ -151,10 +151,10 @@ class ObjectDetector internal constructor(
         // Load labels
         labels = config.labels?.resolve(context)
             ?: List(
-                when {
-                    outputShape.size == 3 && outputShape[2] == 6 -> 80 // YOLO26 E2E default
-                    outputShape.size == 3 && outputShape[1] < outputShape[2] -> outputShape[1] - 4
-                    outputShape.size == 3 -> outputShape[2] - 4
+                when (outputShape.size) {
+                    3 if outputShape[2] == 6 -> 80 // YOLO26 E2E default
+                    3 if outputShape[1] < outputShape[2] -> outputShape[1] - 4
+                    3 -> outputShape[2] - 4
                     else -> outputShape.last() - 4
                 }.coerceAtLeast(1)
             ) { "class_$it" }
@@ -206,12 +206,11 @@ class ObjectDetector internal constructor(
         if (isFloatType && inputFloatArray != null) {
             val inv255 = 1f / 255f
             if (isNCHW) {
-                val planeSize = numPixels
-                val plane2 = planeSize * 2
+                val plane2 = numPixels * 2
                 for (i in 0 until numPixels) {
                     val pixel = pixelArray[i]
                     inputFloatArray[i] = ((pixel shr 16) and 0xFF) * inv255
-                    inputFloatArray[planeSize + i] = ((pixel shr 8) and 0xFF) * inv255
+                    inputFloatArray[numPixels + i] = ((pixel shr 8) and 0xFF) * inv255
                     inputFloatArray[plane2 + i] = (pixel and 0xFF) * inv255
                 }
             } else {
@@ -264,7 +263,7 @@ class ObjectDetector internal constructor(
 
         // Unmap coordinates from model space to original image space
         val invScale = 1f / scale
-        for (i in 0 until nmsPool.size) {
+        for (i in nmsPool.indices) {
             val cand = nmsPool[i]
             val left = max(0f, (cand.left - padX) * invScale)
             val top = max(0f, (cand.top - padY) * invScale)

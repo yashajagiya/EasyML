@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     id("maven-publish")
 }
 
@@ -64,6 +65,9 @@ dependencies {
     // Permissions helper for Compose
     implementation(libs.accompanist.permissions)
 
+    // Serialization
+    api(libs.kotlinx.serialization.json)
+
     // Testing
     testImplementation(libs.junit)
 }
@@ -75,7 +79,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.yashajagiya"
                 artifactId = "easyml"
-                version = "1.5.0"
+                version = "1.6.0"
 
                 pom {
                     name.set("EasyML")

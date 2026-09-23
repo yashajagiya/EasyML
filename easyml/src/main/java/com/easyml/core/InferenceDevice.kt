@@ -1,8 +1,10 @@
+@file:Suppress("SpellCheckingInspection")
 package com.easyml.core
 
 import android.util.Log
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.gpu.GpuDelegateFactory
 
 /**
  * Hardware acceleration target for model inference.
@@ -86,9 +88,9 @@ enum class InferenceDevice {
 
     private fun createGpuDelegate(useFp16: Boolean): GpuDelegate? {
         return try {
-            val delegateOptions = GpuDelegate.Options().apply {
-                setPrecisionLossAllowed(useFp16)
-                setInferencePreference(GpuDelegate.Options.INFERENCE_PREFERENCE_FAST_SINGLE_ANSWER)
+            val delegateOptions = GpuDelegateFactory.Options().apply {
+                isPrecisionLossAllowed = useFp16
+                inferencePreference = GpuDelegateFactory.Options.INFERENCE_PREFERENCE_FAST_SINGLE_ANSWER
             }
             GpuDelegate(delegateOptions)
         } catch (e: Throwable) {
