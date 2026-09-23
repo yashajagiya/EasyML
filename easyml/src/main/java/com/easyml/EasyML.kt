@@ -52,6 +52,14 @@ object EasyML {
     }
 
     /**
+     * Convenient shortcut alias for [objectDetector].
+     */
+    fun detector(
+        context: Context,
+        config: DetectorConfig.() -> Unit
+    ): ObjectDetector = objectDetector(context, config)
+
+    /**
      * Asynchronously load and initialize an [ObjectDetector] on [Dispatchers.IO]
      * to eliminate app launch ANRs and UI frame drops.
      */

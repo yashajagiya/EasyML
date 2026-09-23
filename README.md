@@ -124,7 +124,7 @@ In your `app/build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.yashajagiya:easyml:1.5.0")
+    implementation("com.github.yashajagiya:easyml:1.6.0")
 }
 ```
 
@@ -132,7 +132,7 @@ Or via Version Catalog (`gradle/libs.versions.toml`):
 
 ```toml
 [versions]
-easyml = "1.5.0"
+easyml = "1.6.0"
 
 [libraries]
 easyml = { group = "com.github.yashajagiya", name = "easyml", version.ref = "easyml" }
@@ -454,6 +454,24 @@ EasyML.detector(context) {
 | `numThreads` | `Int` | `4` | Number of CPU worker threads. |
 | `inputWidth` | `Int?` | `null` | Optional override for model input width. |
 | `inputHeight` | `Int?` | `null` | Optional override for model input height. |
+
+#### `LabelSource` Options
+
+| Type | Syntax | Description |
+| :--- | :--- | :--- |
+| **`Asset`** | `LabelSource.Asset("labels.txt")` | Plain text file from `assets/` with one class label per line. |
+| **`JsonAsset`** | `LabelSource.JsonAsset("classes.json")` | JSON file from `assets/` (supports `["cat", "dog"]` or `{"0": "cat", "1": "dog"}`). |
+| **`JsonString`** | `LabelSource.JsonString(jsonContent)` | Raw in-memory JSON string (supports array or index-mapped keys). |
+| **`ExternalFile`** | `LabelSource.ExternalFile(File("/path"))` | Text file loaded from device or internal app storage. |
+| **`StringList`** | `LabelSource.StringList(listOf("cat", "dog"))` | Direct in-memory `List<String>`. |
+
+#### `ModelSource` Options
+
+| Type | Syntax | Description |
+| :--- | :--- | :--- |
+| **`Asset`** | `ModelSource.Asset("model.tflite")` | Zero-copy memory-mapped model file from `assets/`. |
+| **`ExternalFile`** | `ModelSource.ExternalFile(File("/path"))` | Memory-mapped model file from device storage. |
+| **`Buffer`** | `ModelSource.Buffer(byteBuffer)` | Direct in-memory `ByteBuffer` containing model weights. |
 
 ---
 
