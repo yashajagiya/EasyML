@@ -55,32 +55,62 @@ internal class TFLiteEngine(
     val outputQuantizationParams: Tensor.QuantizationParams
         get() = interpreter.getOutputTensor(0).quantizationParams()
 
+    /** Human-readable identifier for the active hardware inference accelerator */
+    val activeAccelerator: String
+
     init {
         val modelBuffer = modelSource.resolve(context)
         var delegate: GpuDelegate? = null
         var interp: Interpreter? = null
+        var accelerator = "CPU"
 
         try {
             val options = Interpreter.Options()
             delegate = device.configure(options, numThreads, useFp16)
             interp = Interpreter(modelBuffer, options)
+            accelerator = if (delegate != null) "GPU (FP16=$useFp16)" else "NNAPI"
+            android.util.Log.i("EasyML", "Active inference accelerator: $accelerator")
         } catch (e: Exception) {
             if (device == InferenceDevice.GPU_STRICT) {
                 throw e
             }
-            android.util.Log.w("EasyML", "Delegate initialization with $device failed (${e.message}), falling back to CPU")
+            android.util.Log.w("EasyML", "Primary delegate initialization with $device failed (${e.message})")
             delegate?.close()
             delegate = null
-            val fallbackOptions = Interpreter.Options().apply {
-                setUseXNNPACK(true)
-                val availableCores = Runtime.getRuntime().availableProcessors()
-                setNumThreads(minOf(availableCores, numThreads.coerceIn(1, 4)))
+
+            // Tier 2: Attempt NNAPI hardware acceleration if AUTO was requested
+            if (device == InferenceDevice.AUTO) {
+                try {
+                    val nnapiOptions = Interpreter.Options().apply {
+                        setUseNNAPI(true)
+                        val availableCores = Runtime.getRuntime().availableProcessors()
+                        setNumThreads(numThreads.coerceIn(1, maxOf(availableCores, 4)))
+                    }
+                    interp = Interpreter(modelBuffer, nnapiOptions)
+                    accelerator = "NNAPI (Hardware Accelerated)"
+                    android.util.Log.i("EasyML", "Successfully fell back to hardware accelerator: $accelerator")
+                } catch (nnapiEx: Exception) {
+                    android.util.Log.w("EasyML", "NNAPI hardware acceleration unavailable (${nnapiEx.message}), falling back to CPU")
+                }
             }
-            interp = Interpreter(modelBuffer, fallbackOptions)
+
+            // Tier 3: Multi-core CPU with XNNPACK SIMD acceleration
+            if (interp == null) {
+                val availableCores = Runtime.getRuntime().availableProcessors()
+                val targetThreads = numThreads.coerceIn(1, maxOf(availableCores, 4))
+                val fallbackOptions = Interpreter.Options().apply {
+                    setUseXNNPACK(true)
+                    setNumThreads(targetThreads)
+                }
+                interp = Interpreter(modelBuffer, fallbackOptions)
+                accelerator = "CPU (XNNPACK $targetThreads threads)"
+                android.util.Log.i("EasyML", "Active inference accelerator: $accelerator")
+            }
         }
 
         this.gpuDelegate = delegate
         this.interpreter = interp
+        this.activeAccelerator = accelerator
     }
 
     /**

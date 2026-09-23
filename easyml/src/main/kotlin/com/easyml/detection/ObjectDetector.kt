@@ -86,6 +86,8 @@ class ObjectDetector internal constructor(
     private val inputFloatArray: FloatArray?
     private val inputByteArray: ByteArray?
     private val drawMatrix = Matrix()
+    private val invertMatrix = Matrix()
+    private val mapPts = FloatArray(4)
 
     // Pre-allocated candidate pools reused every frame to eliminate heap churn
     private val candidatePool = ArrayList<DetectionCandidate>(500)
@@ -353,17 +355,43 @@ class ObjectDetector internal constructor(
 
         // Unmap coordinates from model space to original image space
         val invScale = 1f / scale
+        if (rotationDegrees != 0) {
+            drawMatrix.invert(invertMatrix)
+        }
+
         for (i in nmsPool.indices) {
             val cand = nmsPool[i]
-            val left = max(0f, (cand.left - padX) * invScale)
-            val top = max(0f, (cand.top - padY) * invScale)
-            val right = min(srcWidth.toFloat(), (cand.right - padX) * invScale)
-            val bottom = min(srcHeight.toFloat(), (cand.bottom - padY) * invScale)
+            val left: Float
+            val top: Float
+            val right: Float
+            val bottom: Float
+
+            if (rotationDegrees == 0) {
+                left = (cand.left - padX) * invScale
+                top = (cand.top - padY) * invScale
+                right = (cand.right - padX) * invScale
+                bottom = (cand.bottom - padY) * invScale
+            } else {
+                mapPts[0] = cand.left
+                mapPts[1] = cand.top
+                mapPts[2] = cand.right
+                mapPts[3] = cand.bottom
+                invertMatrix.mapPoints(mapPts)
+                left = minOf(mapPts[0], mapPts[2])
+                top = minOf(mapPts[1], mapPts[3])
+                right = maxOf(mapPts[0], mapPts[2])
+                bottom = maxOf(mapPts[1], mapPts[3])
+            }
+
+            val clampLeft = left.coerceIn(0f, bitmap.width.toFloat())
+            val clampTop = top.coerceIn(0f, bitmap.height.toFloat())
+            val clampRight = right.coerceIn(0f, bitmap.width.toFloat())
+            val clampBottom = bottom.coerceIn(0f, bitmap.height.toFloat())
 
             val labelText = if (cand.labelIndex in labels.indices) labels[cand.labelIndex] else "class_${cand.labelIndex}"
             outResults.add(
                 Detection(
-                    boundingBox = RectF(left, top, right, bottom),
+                    boundingBox = RectF(clampLeft, clampTop, clampRight, clampBottom),
                     label = labelText,
                     labelIndex = cand.labelIndex,
                     confidence = cand.confidence

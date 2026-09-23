@@ -103,10 +103,12 @@ fun EasyMLCameraView(
     enableSmoothing: Boolean = true,
     smoothingFactor: Float = 0.35f,
     lensFacing: Int = CameraSelector.LENS_FACING_BACK,
-    overlayColor: Color = Color(0xFF00E676),
-    strokeWidth: Float = 4f,
+    overlayColor: Color? = null,
+    colorProvider: ((Detection) -> Color)? = null,
+    showFill: Boolean = true,
+    strokeWidth: Float = 3.5f,
     cornerRadius: Float = 8f,
-    labelSize: Int = 14,
+    labelSize: Int = 13,
     onResults: ((List<Detection>) -> Unit)? = null,
     onInferenceTime: ((Long) -> Unit)? = null,
     onInferenceMetrics: ((InferenceMetrics) -> Unit)? = null
@@ -243,11 +245,13 @@ fun EasyMLCameraView(
                     imageHeight = imageHeight,
                     modifier = Modifier.fillMaxSize(),
                     boxColor = overlayColor,
+                    colorProvider = colorProvider,
                     strokeWidth = strokeWidth,
                     cornerRadius = cornerRadius,
                     labelSize = labelSize,
                     showLabels = showLabels,
                     showConfidence = showConfidence,
+                    showFill = showFill,
                     isMirrored = lensFacing == CameraSelector.LENS_FACING_FRONT
                 )
             }

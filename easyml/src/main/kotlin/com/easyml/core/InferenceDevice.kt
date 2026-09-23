@@ -33,7 +33,7 @@ enum class InferenceDevice {
         useFp16: Boolean = true
     ): GpuDelegate? {
         val availableCores = Runtime.getRuntime().availableProcessors()
-        val optimalThreads = minOf(availableCores, numThreads.coerceIn(1, 4))
+        val optimalThreads = numThreads.coerceIn(1, maxOf(availableCores, 4))
         options.setNumThreads(optimalThreads)
 
         return when (this) {
