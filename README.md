@@ -1,4 +1,4 @@
-# 🚀 EasyML — The Complete Guide & Architecture Reference (The EasyML Bible)
+# 🚀 EasyML — The Complete Developer Guide & Architecture Reference (The EasyML Bible)
 
 [![JitPack](https://img.shields.io/badge/JitPack-v1.6.1-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -7,66 +7,114 @@
 [![KMP Ready](https://img.shields.io/badge/Architecture-KMP%20Ready-F88909.svg)](https://kotlinlang.org/docs/multiplatform.html)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Ready-4285F4.svg)](https://developer.android.com/jetpack/compose)
 
-**EasyML** is an ultra-fast, 100% pure Kotlin, hardware-accelerated Machine Learning SDK engineered specifically for Android, Jetpack Compose, and future Kotlin Multiplatform (KMP) workflows.
+**EasyML** is an ultra-fast, 100% pure Kotlin, hardware-accelerated Machine Learning SDK engineered specifically for **Android**, **Jetpack Compose**, and future **Kotlin Multiplatform (KMP)** workflows.
 
-It delivers real-time inference for **YOLO Object Detection (YOLO26, YOLO11, YOLOv8, YOLOv5)**, **Image Classification**, and **Custom TFLite Models** with zero boilerplate, multi-tier hardware acceleration (**GPU FP16 $\to$ NNAPI $\to$ Multi-Core CPU XNNPACK**), dynamic per-class color palettes, class-aware Non-Maximum Suppression (NMS), automatic INT8/UINT8 dequantization, and microsecond-level telemetry.
+It provides a unified, production-grade foundation for real-time **YOLO Object Detection (YOLO26, YOLO11, YOLOv8, YOLOv5)**, **Image Classification**, and **Custom TFLite Models** with zero boilerplate, multi-tier hardware acceleration (**GPU FP16 $\to$ NNAPI $\to$ Multi-Core CPU XNNPACK**), dynamic per-class color palettes, class-aware Non-Maximum Suppression (NMS), automatic INT8/UINT8 dequantization, and microsecond-level telemetry.
 
 ---
 
 ## 📑 Table of Contents
 
-1. [🌟 Core Highlights & Architectural Pillars](#-core-highlights--architectural-pillars)
-2. [📦 Installation & All Gradle Configurations](#-installation--all-gradle-configurations)
-   - [Method 1: Kotlin DSL with Version Catalog (`libs.versions.toml`)](#method-1-kotlin-dsl-with-version-catalog-libsversionstoml)
-   - [Method 2: Kotlin DSL (`build.gradle.kts`)](#method-2-kotlin-dsl-buildgradlekts)
+1. [🌟 Architectural Highlights & Core Pillars](#-architectural-highlights--core-pillars)
+2. [📦 Complete Installation & All Gradle Configurations](#-complete-installation--all-gradle-configurations)
+   - [Method 1: Version Catalog (`libs.versions.toml`) + Kotlin DSL](#method-1-version-catalog-libsversionstoml--kotlin-dsl-recommended)
+   - [Method 2: Kotlin DSL Direct (`build.gradle.kts`)](#method-2-kotlin-dsl-direct-buildgradlekts)
    - [Method 3: Groovy DSL (`build.gradle`)](#method-3-groovy-dsl-buildgradle)
-   - [JitPack Repository Setup](#jitpack-repository-setup)
-   - [Manifest & Packaging Configuration (`noCompress`)](#manifest--packaging-configuration-nocompress)
-   - [ProGuard / R8 Configuration](#proguard--r8-configuration)
-3. [⚡ Direct Implementation (Quick Start in 5 Lines)](#-direct-implementation-quick-start-in-5-lines)
-   - [Full Working Example](#full-working-example)
-   - [Line-by-Line Breakdown](#line-by-line-breakdown)
-4. [🎨 Custom Implementations (The Deep-Dive Bible)](#-custom-implementations-the-deep-dive-bible)
-   - [1. Dynamic Per-Class Visuals & Custom Overlays](#1-dynamic-per-class-visuals--custom-overlays)
-   - [2. Manual Image Detection (Bitmaps, Gallery, Network)](#2-manual-image-detection-bitmaps-gallery-network)
+   - [JitPack Repository Setup (`settings.gradle.kts` vs Root `build.gradle`)](#jitpack-repository-setup)
+   - [Manifest & Hardware Features](#manifest--hardware-features)
+   - [Packaging Options (`noCompress`) for Zero-Copy Memory Mapping](#packaging-options-nocompress-for-zero-copy-memory-mapping)
+   - [ProGuard / R8 Rules](#proguard--r8-rules)
+3. [⚡ Direct Implementation (The 5-Line Quick Start)](#-direct-implementation-the-5-line-quick-start)
+   - [Full Copy-Pasteable Activity](#full-copy-pasteable-activity)
+   - [Line-by-Line Technical Breakdown](#line-by-line-technical-breakdown)
+4. [🎨 Custom Implementations: The Deep-Dive Bible](#-custom-implementations-the-deep-dive-bible)
+   - [1. Dynamic Styling Engine & Custom Canvas Overlays](#1-dynamic-styling-engine--custom-canvas-overlays)
+   - [2. Manual Image Inference (Bitmaps, Gallery & Network)](#2-manual-image-inference-bitmaps-gallery--network)
    - [3. Zero-Allocation High-Throughput Memory Recycling](#3-zero-allocation-high-throughput-memory-recycling)
    - [4. Non-Blocking Coroutines (`detectAsync` & `loadDetectorAsync`)](#4-non-blocking-coroutines-detectasync--loaddetectorasync)
    - [5. Hardware Acceleration Tuning (GPU, NNAPI, CPU)](#5-hardware-acceleration-tuning-gpu-nnapi-cpu)
-   - [6. Model Decoders (YOLO26 End-to-End, YOLO11/v8, YOLOv5 & Custom)](#6-model-decoders-yolo26-end-to-end-yolo11v8-yolov5--custom)
-   - [7. INT8 / UINT8 Quantization & Automatic Dequantization](#7-int8--uint8-quantization--automatic-dequantization)
-   - [8. Temporal Bounding Box Smoothing (`DetectionSmoother`)](#8-temporal-bounding-box-smoothing-detectionsmoother)
-   - [9. Microsecond Profiling via `InferenceMetrics`](#9-microsecond-profiling-via-inferencemetrics)
-   - [10. Image Classification Pipeline](#10-image-classification-pipeline)
-   - [11. Raw Arbitrary Model Runner](#11-raw-arbitrary-model-runner)
-   - [12. JSON Serialization & Remote Streaming (`kotlinx.serialization`)](#12-json-serialization--remote-streaming-kotlinxserialization)
-5. [🌐 100% Pure Kotlin & KMP Architecture](#-100-pure-kotlin--kmp-architecture)
-6. [🛠️ Complete API Reference](#️-complete-api-reference)
-7. [❓ FAQ & Troubleshooting](#-faq--troubleshooting)
-8. [📄 License](#-license)
+   - [6. Deep Dive into Model Decoders (YOLO26, YOLO11, YOLOv8, YOLOv5)](#6-deep-dive-into-model-decoders-yolo26-yolo11-yolov8-yolov5)
+   - [7. Building a Custom Detection Decoder](#7-building-a-custom-detection-decoder)
+   - [8. INT8 & UINT8 Quantization Dequantization](#8-int8--uint8-quantization-dequantization)
+   - [9. Temporal Bounding Box Smoothing (`DetectionSmoother`)](#9-temporal-bounding-box-smoothing-detectionsmoother)
+   - [10. Microsecond Telemetry & Profiling (`InferenceMetrics`)](#10-microsecond-telemetry--profiling-inferencemetrics)
+   - [11. Image Classification Pipeline (`ImageClassifier`)](#11-image-classification-pipeline-imageclassifier)
+   - [12. Raw Arbitrary Model Execution (`RawRunner`)](#12-raw-arbitrary-model-execution-rawrunner)
+   - [13. JSON Serialization & Remote Streaming (`kotlinx.serialization`)](#13-json-serialization--remote-streaming-kotlinxserialization)
+5. [🍳 Production Recipes & End-to-End Real-World Samples](#-production-recipes--end-to-end-real-world-samples)
+   - [Recipe 1: Full-Featured Security Camera with Category Filtering](#recipe-1-full-featured-security-camera-with-category-filtering)
+   - [Recipe 2: Gallery Image Analyzer in MVVM / ViewModel](#recipe-2-gallery-image-analyzer-in-mvvm--viewmodel)
+   - [Recipe 3: Hazard Alert Sentry with Audio / Haptic Feedback & JSON Streaming](#recipe-3-hazard-alert-sentry-with-audio--haptic-feedback--json-streaming)
+6. [🌐 100% Pure Kotlin & KMP Architecture](#-100-pure-kotlin--kmp-architecture)
+7. [🛠️ Exhaustive API Reference](#️-exhaustive-api-reference)
+8. [❓ FAQ, Troubleshooting & Performance Gotchas](#-faq-troubleshooting--performance-gotchas)
+9. [📄 License](#-license)
 
 ---
 
-## 🌟 Core Highlights & Architectural Pillars
+## 🌟 Architectural Highlights & Core Pillars
 
-| Pillar | Capability |
-| :--- | :--- |
-| **100% Pure Kotlin** | Zero Java files in the library. Clean `src/main/kotlin` architecture designed for straightforward KMP migration. |
-| **3-Tier Hardware Acceleration** | Automatic fallback: **GPU Delegate (FP16)** $\to$ **NNAPI (NPU/DSP/GPU)** $\to$ **Multi-Core CPU (XNNPACK)**. Accelerates NCHW models at 30+ FPS. |
-| **All-in-One Compose View** | `<EasyMLCameraView />` encapsulates camera permissions, CameraX lifecycle, ISP downscaling, box smoothing, and dynamic rendering into one composable. |
-| **Dynamic Styling Engine** | High-contrast 16+ color dynamic class palette, translucent bounding box fills, and frosted dark pill badges with confidence indicators. |
-| **YOLO Multi-Architecture** | Native support for **YOLO26 End-to-End** (`[1, 300, 6]`), **YOLO11 / YOLOv8** (`[1, 84, 8400]`), and **YOLOv5 / YOLOv7** (`[1, 25200, 85]`). |
-| **Zero-Allocation Pipeline** | Reusable `ByteBuffer` memory pools and in-place list population eliminate garbage collector pauses during live camera streams. |
-| **First-Class Serialization** | Native `kotlinx.serialization` support for `Detection`, `DetectionList`, `Classification`, and `InferenceMetrics`. |
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       Jetpack Compose UI Layer                          │
+│     <EasyMLCameraView />  •  <DetectionOverlay />  •  Custom Canvas     │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ Frame Lifecycle & Results State
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           EasyMLAnalyzer                                │
+│   - Backpressure handling (STRATEGY_KEEP_ONLY_LATEST)                   │
+│   - CameraX ISP Hardware Downscaling (ResolutionSelector 4:3)           │
+│   - Opaque, upright frame acquisition (ImageUtils SIMD)                 │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ Direct Invertible Matrix [Bitmap]
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           ObjectDetector                                │
+│   - Aspect-ratio letterboxing & padding extraction                      │
+│   - Cache-friendly sequential memory normalizer                         │
+│   - Invertible coordinate mapping (drawMatrix.invert)                   │
+│   - Optional Exponential Moving Average (DetectionSmoother)             │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ Pre-allocated Native ByteBuffers
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       TFLiteEngine Execution                            │
+│  ┌───────────────────┐    ┌────────────────────┐    ┌────────────────┐  │
+│  │ Tier 1: GPU FP16  │ -> │   Tier 2: NNAPI    │ -> │ Tier 3: CPU    │  │
+│  │ OpenCL/OpenGL ES  │    │ NPU / DSP / Driver │    │ Multi-Thread   │  │
+│  └───────────────────┘    └────────────────────┘    └────────────────┘  │
+│   - Auto INT8/UINT8 Dequantization [(val - zeroPoint) * scale]          │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ Raw Output Tensors
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         DetectionDecoder                                │
+│   - AutoDetectionDecoder (Heuristic tensor shape matching)              │
+│   - Yolo26EndToEndDecoder ([1, 300, 6] embedded NMS)                    │
+│   - YoloV8Decoder ([1, 84, 8400] transposed / dual-head)                │
+│   - YoloV5Decoder ([1, 25200, 85] with objectness)                      │
+│   - Class-Aware NMS (Independent suppression per class index)           │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **100% Pure Kotlin**: Contains zero Java files and uses standard `src/main/kotlin` directory structure, paving the way for straightforward Kotlin Multiplatform (KMP) adoption.
+2. **Resilient 3-Tier Hardware Acceleration**:
+   - **Tier 1: GPU Delegate (FP16)** for ultra-fast shader computation on NHWC models.
+   - **Tier 2: NNAPI Hardware Acceleration** for dispatching NCHW models (e.g. PyTorch YOLO exports) to modern phone NPUs, DSPs, and GPU drivers at **30+ FPS**.
+   - **Tier 3: Multi-Core CPU (XNNPACK)** utilizing all performance cores on modern octa-core processors with ARM NEON SIMD.
+3. **Zero-Allocation Pipeline**: Pre-allocated direct native byte buffers and in-place list population methods eliminate garbage collection (GC) pauses during live 60 FPS video streams.
+4. **Dynamic Visual Engine**: High-contrast 16+ color dynamic class palette, translucent box fills, and frosted dark pill badges with confidence indicators.
 
 ---
 
-## 📦 Installation & All Gradle Configurations
+## 📦 Complete Installation & All Gradle Configurations
 
-EasyML is distributed via [JitPack](https://jitpack.io/#yashajagiya/easyml). Choose the Gradle configuration that matches your project setup.
+EasyML is distributed through [JitPack](https://jitpack.io/#yashajagiya/easyml).
 
 ### JitPack Repository Setup
 
-#### Modern Android (`settings.gradle.kts`):
+#### Modern Android Setup (`settings.gradle.kts`):
 ```kotlin
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
@@ -78,7 +126,7 @@ dependencyResolutionManagement {
 }
 ```
 
-#### Legacy Android (`root build.gradle` or `root build.gradle.kts`):
+#### Legacy Android Setup (Root `build.gradle` or Root `build.gradle.kts`):
 ```groovy
 allprojects {
     repositories {
@@ -91,9 +139,10 @@ allprojects {
 
 ---
 
-### Dependency Declaration
+### Dependency Declaration Options
 
-#### Method 1: Kotlin DSL with Version Catalog (`libs.versions.toml`) — Recommended
+#### Method 1: Version Catalog (`libs.versions.toml`) + Kotlin DSL (Recommended)
+
 In `gradle/libs.versions.toml`:
 ```toml
 [versions]
@@ -102,6 +151,7 @@ easyml = "1.6.1"
 [libraries]
 easyml = { group = "com.github.yashajagiya", name = "easyml", version.ref = "easyml" }
 ```
+
 In `app/build.gradle.kts`:
 ```kotlin
 dependencies {
@@ -109,7 +159,8 @@ dependencies {
 }
 ```
 
-#### Method 2: Kotlin DSL (`build.gradle.kts`)
+#### Method 2: Kotlin DSL Direct (`build.gradle.kts`)
+
 In `app/build.gradle.kts`:
 ```kotlin
 dependencies {
@@ -118,6 +169,7 @@ dependencies {
 ```
 
 #### Method 3: Groovy DSL (`build.gradle`)
+
 In `app/build.gradle`:
 ```groovy
 dependencies {
@@ -127,17 +179,28 @@ dependencies {
 
 ---
 
-### Manifest & Packaging Configuration (`noCompress`)
+### Manifest & Hardware Features
 
-1. **Camera Permission**: Add to `app/src/main/AndroidManifest.xml`:
+Add to `app/src/main/AndroidManifest.xml`:
 ```xml
+<!-- Required for live camera inference -->
 <uses-feature android:name="android.hardware.camera.any" />
 <uses-permission android:name="android.permission.CAMERA" />
+
+<!-- Optional: Required only if reading photos from gallery or external storage -->
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 ```
 
-2. **Disable Model Compression**: TensorFlow Lite models must be uncompressed in the APK so they can be memory-mapped zero-copy directly from disk into hardware accelerators.
+---
 
-In `app/build.gradle.kts`:
+### Packaging Options (`noCompress`) for Zero-Copy Memory Mapping
+
+> [!IMPORTANT]
+> By default, the Android Gradle Plugin compresses `.tflite` model files in your APK. When compressed, TensorFlow Lite cannot memory-map the model directly into memory and must decompress the entire model into RAM, causing memory bloat and initialization lag.
+
+Disable compression for `.tflite` files:
+
+#### In Kotlin DSL (`app/build.gradle.kts`):
 ```kotlin
 android {
     ...
@@ -146,7 +209,8 @@ android {
     }
 }
 ```
-Or in Groovy `app/build.gradle`:
+
+#### In Groovy DSL (`app/build.gradle`):
 ```groovy
 android {
     ...
@@ -156,30 +220,38 @@ android {
 }
 ```
 
-### ProGuard / R8 Configuration
-EasyML includes consumer ProGuard rules automatically. If you write custom decoders or model classes with `kotlinx.serialization`, ensure R8 preserves serialized names:
+---
+
+### ProGuard / R8 Rules
+
+EasyML includes consumer ProGuard rules automatically inside its `.aar`. If your app uses custom serialized data classes with `kotlinx.serialization` or custom decoders, verify your `app/proguard-rules.pro` includes:
+
 ```proguard
 -keepattributes *Annotation*,Signature
 -keepclassmembers class * {
     @kotlinx.serialization.Serializable *;
 }
+-keep class org.tensorflow.lite.** { *; }
 ```
 
 ---
 
-## ⚡ Direct Implementation (Quick Start in 5 Lines)
+## ⚡ Direct Implementation (The 5-Line Quick Start)
 
-The fastest way to get real-time object detection running in your Android app is using `<EasyMLCameraView />`.
+Get live camera object detection running in your Jetpack Compose app in seconds.
 
-### Full Working Example
+### Full Copy-Pasteable Activity
 
 ```kotlin
-package com.example.app
+package com.example.mldependcay
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -194,70 +266,77 @@ import com.easyml.core.ModelSource
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
-            DetectionScreen()
+            Scaffold(modifier = Modifier.fillMaxSize()) { paddingValues ->
+                DetectionScreen(modifier = Modifier.padding(paddingValues))
+            }
         }
     }
 }
 
 @Composable
-fun DetectionScreen() {
+fun DetectionScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
-    // Line 1: Build the detector instance
+    // 1. Initialize detector with model, labels, and hardware acceleration
     val detector = remember {
         EasyML.objectDetector(context) {
-            model = ModelSource.Asset("yolov8n.tflite")        // Model in assets/
-            labels = LabelSource.Asset("labels.txt")           // Labels in assets/
-            confidenceThreshold = 0.40f                        // Filter false positives
-            device = InferenceDevice.AUTO                      // GPU FP16 -> NNAPI -> CPU
+            model = ModelSource.Asset("yolon.tflite")        // Model in app/src/main/assets/
+            labels = LabelSource.Asset("labels.txt")         // Labels in app/src/main/assets/
+            confidenceThreshold = 0.40f                      // Filter false positives
+            device = InferenceDevice.AUTO                    // GPU FP16 -> NNAPI -> CPU
         }
     }
 
-    // Line 2: Ensure resources close when screen disposes
+    // 2. Ensure interpreter and delegate memory are released on disposal
     DisposableEffect(Unit) {
         onDispose { detector.close() }
     }
 
-    // Line 3-5: Live camera preview + dynamic boxes + FPS badge
+    // 3. Render camera stream, dynamic bounding boxes, and real-time FPS
     EasyMLCameraView(
         detector = detector,
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         showOverlay = true,
         showFps = true
     )
 }
 ```
 
-### Line-by-Line Breakdown
+### Line-by-Line Technical Breakdown
 
-1. `EasyML.objectDetector(context) { ... }`: The DSL entrypoint. Automatically loads the TFLite flatbuffer, inspects input/output shapes, selects the appropriate decoder (e.g. YOLOv8, YOLO26, or YOLOv5), and configures the hardware engine.
-2. `model = ModelSource.Asset("yolov8n.tflite")`: Resolves the model from the `app/src/main/assets/` directory using zero-copy memory mapping.
-3. `labels = LabelSource.Asset("labels.txt")`: Loads human-readable names for classes (e.g. `person`, `car`, `dog`).
-4. `device = InferenceDevice.AUTO`: Automatically probes hardware. It tries the GPU delegate with FP16 precision, then attempts **NNAPI** hardware acceleration, and finally falls back to multi-core CPU with XNNPACK SIMD.
-5. `<EasyMLCameraView />`: Handles everything: requests camera permission, binds CameraX Preview and ImageAnalysis with hardware downscaling, runs real-time inference, and renders the dynamic overlay.
+1. `EasyML.objectDetector(context) { ... }`: The DSL entrypoint. Loads the TFLite flatbuffer, inspects input/output shapes, selects the appropriate decoder (e.g. YOLOv8, YOLO26, or YOLOv5), and configures the hardware engine.
+2. `model = ModelSource.Asset("yolon.tflite")`: Resolves the model from `assets/` using zero-copy memory mapping (`AssetFileDescriptor`).
+3. `labels = LabelSource.Asset("labels.txt")`: Reads class labels (one per line) into an immutable array.
+4. `device = InferenceDevice.AUTO`: Automatically probes hardware:
+   - Tries **GPU Delegate with FP16 precision**.
+   - If GPU fails (e.g. NCHW layout in `yolon.tflite`), seamlessly falls back to **NNAPI hardware acceleration** (30+ FPS on NPU/DSP).
+   - If NNAPI is unavailable, falls back to **Multi-Core CPU with XNNPACK**.
+5. `<EasyMLCameraView />`: Handles camera runtime permissions, CameraX preview, ISP downscaling, inference execution, and dynamic canvas rendering.
 
 ---
 
-## 🎨 Custom Implementations (The Deep-Dive Bible)
+## 🎨 Custom Implementations: The Deep-Dive Bible
 
-### 1. Dynamic Per-Class Visuals & Custom Overlays
+### 1. Dynamic Styling Engine & Custom Canvas Overlays
 
-EasyML comes with an automatic **16+ vibrant neon color palette** (`DetectionColorPalette`) and floating frosted pill badges. You can customize every aspect of the visual rendering.
+EasyML includes a dynamic styling engine with a **16+ vibrant color palette** (`DetectionColorPalette`), translucent box fills, and frosted dark pill badges.
 
-#### Automatic Dynamic Mode (Default)
-When `overlayColor` is omitted or set to `null`, every class is assigned a distinct high-contrast color automatically:
-```kotlin
-EasyMLCameraView(
-    detector = detector,
-    modifier = Modifier.fillMaxSize(),
-    showOverlay = true,
-    showFill = true          // Subtle 12% translucent fill inside each bounding box
-)
+```
+┌────────────────────────────────────────────────────────┐
+│  [Person • 94%]                                        │  <- Frosted pill badge
+│ ┌────────────────────────────────────────────────────┐ │
+│ │                                                    │ │
+│ │           (12% Translucent Tinted Fill)            │ │  <- Bounding box with
+│ │                                                    │ │     rounded corners
+│ └────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────┘
 ```
 
-#### Custom Color Provider (Category or Object-Specific)
+#### Category or Object-Specific Custom Coloring
 Supply a custom lambda to colorize detections dynamically:
+
 ```kotlin
 EasyMLCameraView(
     detector = detector,
@@ -266,48 +345,52 @@ EasyMLCameraView(
         when (detection.label) {
             "person" -> Color(0xFF00E5FF)       // Electric Cyan for humans
             "knife", "gun" -> Color(0xFFFF1744) // Vibrant Red for hazard objects
-            "cat", "dog" -> Color(0xFFFFD600)   // Gold for animals
+            "car", "truck" -> Color(0xFFFF9100) // Sunset Orange for vehicles
+            "dog", "cat" -> Color(0xFFFFD600)   // Amber Gold for pets
             else -> Color(0xFF9E9E9E)           // Gray for everything else
         }
     },
     strokeWidth = 4.0f,
     cornerRadius = 10.0f,
-    showFill = true
+    showFill = true // Subtle 12% translucent fill inside each bounding box
 )
 ```
 
-#### Standalone Compose Overlay Canvas
-If you manage your own CameraX `PreviewView`, you can render the bounding boxes using `<DetectionOverlay />` independently:
+#### Standalone `<DetectionOverlay />`
+If you manage your own CameraX pipeline, render bounding boxes on any custom canvas:
+
 ```kotlin
 DetectionOverlay(
     detections = detections.toDetectionList(),
     imageWidth = imageWidth,
     imageHeight = imageHeight,
     modifier = Modifier.fillMaxSize(),
-    colorProvider = { det -> DetectionColorPalette.getColorForClass(det.labelIndex) },
+    boxColor = null, // null triggers dynamic per-class palette
+    colorProvider = null,
     strokeWidth = 3.5f,
     cornerRadius = 8f,
     showLabels = true,
     showConfidence = true,
     showFill = true,
-    isMirrored = isFrontCamera
+    isMirrored = (lensFacing == CameraSelector.LENS_FACING_FRONT)
 )
 ```
 
 ---
 
-### 2. Manual Image Detection (Bitmaps, Gallery, Network)
+### 2. Manual Image Inference (Bitmaps, Gallery & Network)
 
-You don't need a camera to use EasyML. You can run object detection synchronously or asynchronously on any Android `Bitmap`:
+You can run object detection synchronously on any Android `Bitmap`:
 
 ```kotlin
-val bitmap: Bitmap = BitmapFactory.decodeFile("/path/to/image.jpg")
+val bitmap: Bitmap = BitmapFactory.decodeFile("/sdcard/DCIM/sample.jpg")
 
-// Synchronous execution (blocking)
+// Synchronous detection (runs on current thread)
 val detections: List<Detection> = detector.detect(bitmap)
 
 detections.forEach { detection ->
-    println("Detected ${detection.label} (${(detection.confidence * 100).toInt()}%) at ${detection.boundingBox}")
+    val box = detection.boundingBox
+    Log.d("EasyML", "Found ${detection.label} (${(detection.confidence * 100).toInt()}%) at [$box]")
 }
 ```
 
@@ -318,17 +401,17 @@ detections.forEach { detection ->
 In high-frame-rate video loops (30–60 FPS), creating new `List<Detection>` instances on every frame causes garbage collection (GC) pressure and micro-stutters. EasyML allows you to populate an existing, reusable `MutableList`:
 
 ```kotlin
-class FrameProcessor(private val detector: ObjectDetector) {
+class VideoFrameProcessor(private val detector: ObjectDetector) {
     // Pre-allocated destination list reused for the lifetime of the pipeline
     private val reusableDetections = ArrayList<Detection>(50)
 
-    fun onFrame(frameBitmap: Bitmap) {
+    fun onFrameArrived(frameBitmap: Bitmap) {
         // Populates reusableDetections in-place with ZERO heap allocations
         detector.detect(frameBitmap, reusableDetections)
 
         for (i in 0 until reusableDetections.size) {
             val item = reusableDetections[i]
-            // Process detection
+            // Process detection without triggering GC events
         }
     }
 }
@@ -345,6 +428,7 @@ EasyML provides native Kotlin Coroutine support to keep your Android Main/UI thr
 class DetectionViewModel : ViewModel() {
     private var detector: ObjectDetector? = null
     val detections = MutableStateFlow<List<Detection>>(emptyList())
+    val isReady = MutableStateFlow(false)
 
     fun initDetector(context: Context) {
         viewModelScope.launch {
@@ -352,7 +436,9 @@ class DetectionViewModel : ViewModel() {
             detector = EasyML.loadDetectorAsync(context) {
                 model = ModelSource.Asset("yolo11n.tflite")
                 labels = LabelSource.Asset("labels.txt")
+                confidenceThreshold = 0.45f
             }
+            isReady.value = true
         }
     }
 
@@ -362,6 +448,11 @@ class DetectionViewModel : ViewModel() {
             val results = detector?.detectAsync(bitmap) ?: emptyList()
             detections.value = results
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        detector?.close()
     }
 }
 ```
@@ -377,11 +468,12 @@ val detector = EasyML.objectDetector(context) {
     model = ModelSource.Asset("yolov8n.tflite")
     labels = LabelSource.Asset("labels.txt")
     
-    // Acceleration Options:
-    // 1. InferenceDevice.AUTO (Recommended)
-    //    Tier 1: GPU Delegate with FP16 precision
-    //    Tier 2: NNAPI Hardware Acceleration (NPU/DSP/GPU)
-    //    Tier 3: Multi-core CPU with XNNPACK SIMD
+    // Hardware strategy:
+    // - AUTO (Default): GPU (FP16) -> NNAPI (NPU/DSP) -> CPU (XNNPACK)
+    // - GPU: Attempts GPU; falls back to CPU if unsupported
+    // - GPU_STRICT: Throws exception if GPU delegate fails
+    // - NNAPI: Forces Android Neural Networks API hardware acceleration
+    // - CPU: Pure multi-core CPU with XNNPACK SIMD
     device = InferenceDevice.AUTO
     
     numThreads = 6 // Target performance threads for CPU execution
@@ -395,7 +487,7 @@ val detector = EasyML.objectDetector(context) {
 
 ---
 
-### 6. Model Decoders (YOLO26 End-to-End, YOLO11/v8, YOLOv5 & Custom)
+### 6. Deep Dive into Model Decoders (YOLO26, YOLO11, YOLOv8, YOLOv5)
 
 EasyML decouples tensor parsing from model execution via the `DetectionDecoder` interface.
 
@@ -423,8 +515,12 @@ val detectorV5 = EasyML.objectDetector(context) {
 }
 ```
 
-#### Writing a Custom Decoder
-Have a custom SSD, MobileNet, or proprietary model? Implement `DetectionDecoder`:
+---
+
+### 7. Building a Custom Detection Decoder
+
+Have a custom SSD, EfficientDet, or proprietary model? Implement `DetectionDecoder`:
+
 ```kotlin
 class CustomSSDDecoder : DetectionDecoder {
     override val isNmsFree: Boolean = false
@@ -439,6 +535,7 @@ class CustomSSDDecoder : DetectionDecoder {
     ): Int {
         var count = 0
         // Parse custom tensor coordinates and append to candidates
+        // Each candidate: DetectionCandidate(left, top, right, bottom, confidence, labelIndex)
         return count
     }
 }
@@ -446,7 +543,7 @@ class CustomSSDDecoder : DetectionDecoder {
 
 ---
 
-### 7. INT8 / UINT8 Quantization & Automatic Dequantization
+### 8. INT8 & UINT8 Quantization Dequantization
 
 EasyML natively executes INT8 and UINT8 quantized models with zero user intervention:
 - Inspects tensor zero points and scale factors automatically.
@@ -456,7 +553,7 @@ EasyML natively executes INT8 and UINT8 quantized models with zero user interven
 
 ---
 
-### 8. Temporal Bounding Box Smoothing (`DetectionSmoother`)
+### 9. Temporal Bounding Box Smoothing (`DetectionSmoother`)
 
 To eliminate rapid bounding box jitter caused by per-frame prediction noise on live video feeds, EasyML provides Exponential Moving Average (EMA) box smoothing:
 
@@ -475,7 +572,7 @@ val smoothedDetections = smoother.update(rawDetections)
 
 ---
 
-### 9. Microsecond Profiling via `InferenceMetrics`
+### 10. Microsecond Telemetry & Profiling (`InferenceMetrics`)
 
 EasyML provides high-precision telemetry measuring every segment of the pipeline:
 
@@ -491,7 +588,7 @@ EasyMLCameraView(
 
 ---
 
-### 10. Image Classification Pipeline
+### 11. Image Classification Pipeline (`ImageClassifier`)
 
 EasyML includes a specialized classification engine for models like MobileNet, EfficientNet, or ResNet:
 
@@ -513,7 +610,7 @@ classifier.close()
 
 ---
 
-### 11. Raw Arbitrary Model Runner
+### 12. Raw Arbitrary Model Execution (`RawRunner`)
 
 For embedding generators, pose estimators, or custom multi-head architectures:
 
@@ -529,7 +626,7 @@ rawRunner.close()
 
 ---
 
-### 12. JSON Serialization & Remote Streaming (`kotlinx.serialization`)
+### 13. JSON Serialization & Remote Streaming (`kotlinx.serialization`)
 
 Every core data structure in EasyML is annotated with `@Serializable`:
 
@@ -548,6 +645,127 @@ val metricsJson: String = detector.lastMetrics.toJson()
 
 ---
 
+## 🍳 Production Recipes & End-to-End Real-World Samples
+
+### Recipe 1: Full-Featured Security Camera with Category Filtering
+
+```kotlin
+@Composable
+fun SecurityCameraScreen() {
+    val context = LocalContext.current
+    var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
+    var alertCount by remember { mutableIntStateOf(0) }
+
+    val detector = remember {
+        EasyML.objectDetector(context) {
+            model = ModelSource.Asset("yolov8n.tflite")
+            labels = LabelSource.Asset("labels.txt")
+            confidenceThreshold = 0.45f
+            device = InferenceDevice.AUTO
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { detector.close() }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        EasyMLCameraView(
+            detector = detector,
+            modifier = Modifier.fillMaxSize(),
+            lensFacing = lensFacing,
+            showOverlay = true,
+            showFps = true,
+            showFill = true,
+            colorProvider = { detection ->
+                if (detection.label in listOf("person", "knife", "backpack")) {
+                    Color(0xFFFF1744) // Bright red alert for security items
+                } else {
+                    Color(0xFF00E5FF) // Electric cyan for everything else
+                }
+            },
+            onResults = { results ->
+                val securityObjects = results.count { it.label in listOf("person", "knife") }
+                alertCount = securityObjects
+            }
+        )
+
+        // Switch camera button
+        IconButton(
+            onClick = {
+                lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+                    CameraSelector.LENS_FACING_FRONT
+                } else {
+                    CameraSelector.LENS_FACING_BACK
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp)
+                .background(Color(0xCC000000), CircleShape)
+        ) {
+            Icon(Icons.Default.Refresh, contentDescription = "Switch Camera", tint = Color.White)
+        }
+    }
+}
+```
+
+---
+
+### Recipe 2: Gallery Image Analyzer in MVVM / ViewModel
+
+```kotlin
+class ImageAnalyzerViewModel : ViewModel() {
+    private var detector: ObjectDetector? = null
+    val detections = MutableStateFlow<List<Detection>>(emptyList())
+    val isAnalyzing = MutableStateFlow(false)
+
+    fun initialize(context: Context) {
+        viewModelScope.launch {
+            detector = EasyML.loadDetectorAsync(context) {
+                model = ModelSource.Asset("yolo11n.tflite")
+                labels = LabelSource.Asset("labels.txt")
+            }
+        }
+    }
+
+    fun analyzeBitmap(bitmap: Bitmap) {
+        viewModelScope.launch {
+            isAnalyzing.value = true
+            val results = detector?.detectAsync(bitmap) ?: emptyList()
+            detections.value = results
+            isAnalyzing.value = false
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        detector?.close()
+    }
+}
+```
+
+---
+
+### Recipe 3: Hazard Alert Sentry with Audio / Haptic Feedback & JSON Streaming
+
+```kotlin
+fun processLiveDetections(detections: List<Detection>, webSocketSession: WebSocketSession?) {
+    val hazards = detections.filter { it.label in listOf("fire", "smoke", "weapon") }
+    
+    if (hazards.isNotEmpty()) {
+        // Trigger haptic or audio feedback
+        triggerAlertSound()
+        
+        // Stream telemetry over WebSocket as JSON
+        val alertJson = hazards.toJson()
+        webSocketSession?.send(Frame.Text(alertJson))
+    }
+}
+```
+
+---
+
 ## 🌐 100% Pure Kotlin & KMP Architecture
 
 EasyML is designed from the ground up for modern Kotlin engineering:
@@ -558,7 +776,7 @@ EasyML is designed from the ground up for modern Kotlin engineering:
 
 ---
 
-## 🛠️ Complete API Reference
+## 🛠️ Exhaustive API Reference
 
 ### `DetectorConfig` DSL Parameters
 
@@ -599,13 +817,16 @@ EasyML is designed from the ground up for modern Kotlin engineering:
 
 ---
 
-## ❓ FAQ & Troubleshooting
+## ❓ FAQ, Troubleshooting & Performance Gotchas
 
 #### Q: My frame rate is stuck at ~5.5 FPS. How do I fix it?
 > **A:** Make sure you are using `device = InferenceDevice.AUTO`. If your model has an NCHW input tensor (`[1, 3, 640, 640]`), TFLite's GPU delegate will fail because it strictly requires NHWC (`[1, 640, 640, 3]`). EasyML's `InferenceDevice.AUTO` automatically falls back to **NNAPI**, which accelerates NCHW models at **30+ FPS** on hardware.
 
 #### Q: Why are my bounding boxes not showing?
-> **A:** Ensure your `confidenceThreshold` is not set too high (try `0.25f` to `0.40f`). Also verify that `CoordinateFormat.AUTO` is selected in your decoder so that normalized coordinate ranges `[0.0, 1.0]` are scaled correctly.
+> **A:** 
+> 1. Verify `confidenceThreshold` is not set too high (start with `0.25f` to `0.40f`).
+> 2. Ensure your model export outputs either normalized coordinates `[0.0, 1.0]` or standard pixel coordinates `[0, 640]`. EasyML's `CoordinateFormat.AUTO` detects this automatically.
+> 3. Verify that your camera frame conversion is delivering an opaque image. In EasyML, this is handled automatically via `ImageUtils.imageProxyToBitmap`.
 
 #### Q: Can two overlapping objects of different classes both be detected?
 > **A:** Yes! EasyML uses **Class-Aware NMS** by default. A person holding a cell phone or wearing a backpack will detect both objects. If you want class-agnostic suppression, set `classAgnosticNms = true`.
