@@ -104,7 +104,21 @@ Benchmark results measured on mid-range Android devices (Snapdragon 778G / Googl
 
 ---
 
-## 📦 Installation & Gradle Configuration
+## 📦 Installation & Dependency Guide
+
+### 🧩 What Dependencies Do You Need?
+
+> [!TIP]
+> **Zero Extra Boilerplate:** You do **NOT** need to manually add CameraX or TensorFlow Lite dependencies!  
+> **EasyML already bundles and transitively includes:**
+> - ✅ **CameraX 1.4.2** (`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-view`)
+> - ✅ **TensorFlow Lite 2.16.1** runtime (`tensorflow-lite`) & GPU Delegate (`tensorflow-lite-gpu`)
+> - ✅ **Accompanist Permissions 0.36.0** (`accompanist-permissions`)
+> - ✅ **Kotlin Coroutines Android 1.9.0** (`kotlinx-coroutines-android`)
+>
+> Adding `easyml` to your project brings all necessary CameraX & TFLite components automatically!
+
+---
 
 ### Step 1: Add JitPack Repository
 
@@ -121,42 +135,112 @@ dependencyResolutionManagement {
 }
 ```
 
-### Step 2: Add EasyML Dependency
+---
 
-In your `app/build.gradle.kts`:
+### Step 2: Add Dependencies to `app/build.gradle.kts`
+
+#### Option A: Minimal Setup (Recommended)
+Since EasyML automatically brings CameraX and TFLite, standard Jetpack Compose apps only need:
 
 ```kotlin
 dependencies {
-    // EasyML Core SDK
+    // 🚀 EasyML (CameraX, TFLite, and Permissions are included automatically!)
     implementation("com.github.yashajagiya:easyml:1.0.0")
 
-    // CameraX & Jetpack Compose dependencies
+    // Standard Jetpack Compose dependencies
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
-    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx")
+    implementation("androidx.compose.material3:material3")
 }
 ```
 
-### Step 3: Prevent TFLite File Compression (Critical)
+#### Option B: Explicit Setup (If You Want to Control CameraX Versions)
+If your app requires explicit CameraX dependency declarations:
 
-To allow Android to memory-map `.tflite` model files directly from disk into memory without decompressing them into RAM (`FileChannel.MapMode.READ_ONLY`), add this to `app/build.gradle.kts`:
+```kotlin
+dependencies {
+    // EasyML
+    implementation("com.github.yashajagiya:easyml:1.0.0")
+
+    // CameraX (Optional - EasyML already includes v1.4.2)
+    val cameraxVersion = "1.4.2"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+
+    // Jetpack Compose
+    implementation(platform("androidx.compose:compose-bom:2024.09.00"))
+    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.5")
+}
+```
+
+#### Option C: Version Catalog (`gradle/libs.versions.toml`)
+If your project uses modern Gradle Version Catalogs:
+
+```toml
+[versions]
+easyml = "1.0.0"
+camerax = "1.4.2"
+
+[libraries]
+# EasyML Core SDK
+easyml = { group = "com.github.yashajagiya", name = "easyml", version.ref = "easyml" }
+
+# CameraX (Optional — bundled transitively by EasyML)
+camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+```
+
+And in `app/build.gradle.kts`:
+```kotlin
+dependencies {
+    implementation(libs.easyml)
+}
+```
+
+---
+
+### Step 3: Configure Android Build Options (Critical)
+
+In `app/build.gradle.kts`, configure:
+1. `compose = true`: Required for `<EasyMLCameraView />`.
+2. `noCompress += "tflite"`: Required so Android memory-maps models directly from disk without decompressing them into RAM.
+3. `sourceCompatibility = JavaVersion.VERSION_11`: Modern Android standard.
 
 ```kotlin
 android {
+    ...
+    buildFeatures {
+        compose = true // 👈 Required for EasyMLCameraView
+    }
+
     androidResources {
-        noCompress += "tflite" // 👈 Prevents asset compression for zero-copy memory mapping
+        noCompress += "tflite" // 👈 Prevents model compression for zero-copy memory mapping
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 ```
 
-### Step 4: Add Camera Permission
+---
 
-Add camera permission to `app/src/main/AndroidManifest.xml`:
+### Step 4: Camera Permissions in `AndroidManifest.xml`
+
+In `app/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera feature declaration & permission -->
     <uses-feature android:name="android.hardware.camera.any" />
     <uses-permission android:name="android.permission.CAMERA" />
 
