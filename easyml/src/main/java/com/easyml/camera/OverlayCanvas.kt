@@ -46,17 +46,19 @@ fun DetectionOverlay(
     val bgColor = Color(0xAA000000)
 
     Canvas(modifier = modifier) {
-        val scaleX = size.width / imageWidth.toFloat()
-        val scaleY = size.height / imageHeight.toFloat()
+        // Map from analyzed image coordinates to PreviewView FILL_CENTER space
+        val scale = maxOf(size.width / imageWidth.toFloat(), size.height / imageHeight.toFloat())
+        val offsetX = (size.width - imageWidth * scale) / 2f
+        val offsetY = (size.height - imageHeight * scale) / 2f
 
         for (detection in detections) {
             val box = detection.boundingBox
 
             // Map coordinates to canvas space
-            var left = box.left * scaleX
-            var right = box.right * scaleX
-            val top = box.top * scaleY
-            val bottom = box.bottom * scaleY
+            var left = box.left * scale + offsetX
+            var right = box.right * scale + offsetX
+            val top = box.top * scale + offsetY
+            val bottom = box.bottom * scale + offsetY
 
             // Mirror for front camera
             if (isMirrored) {

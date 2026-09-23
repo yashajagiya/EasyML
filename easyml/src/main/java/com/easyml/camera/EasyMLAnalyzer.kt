@@ -56,6 +56,7 @@ internal class EasyMLAnalyzer(
             val elapsed = currentTime - lastFpsTime
             if (elapsed >= 1000) {
                 val fps = frameCount * 1000f / elapsed
+                android.util.Log.d("EasyML", "FPS: %.1f, detections: %d".format(fps, detections.size))
                 onFps?.invoke(fps)
                 frameCount = 0
                 lastFpsTime = currentTime

@@ -145,7 +145,7 @@ Since EasyML automatically brings CameraX and TFLite, standard Jetpack Compose a
 ```kotlin
 dependencies {
     // 🚀 EasyML (CameraX, TFLite, and Permissions are included automatically!)
-    implementation("com.github.yashajagiya:easyml:1.0.0")
+    implementation("com.github.yashajagiya:easyml:1.0.1")
 
     // Standard Jetpack Compose dependencies
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
@@ -161,7 +161,7 @@ If your app requires explicit CameraX dependency declarations:
 ```kotlin
 dependencies {
     // EasyML
-    implementation("com.github.yashajagiya:easyml:1.0.0")
+    implementation("com.github.yashajagiya:easyml:1.0.1")
 
     // CameraX (Optional - EasyML already includes v1.4.2)
     val cameraxVersion = "1.4.2"
@@ -184,7 +184,7 @@ If your project uses modern Gradle Version Catalogs:
 
 ```toml
 [versions]
-easyml = "1.0.0"
+easyml = "1.0.1"
 camerax = "1.4.2"
 
 [libraries]

@@ -31,6 +31,8 @@ internal class YoloPostProcessor(
      * @param letterboxScale Scale factor from letterbox padding (null if no letterbox)
      * @param letterboxPadX X padding from letterbox (0 if no letterbox)
      * @param letterboxPadY Y padding from letterbox (0 if no letterbox)
+     * @param modelWidth Model input width in pixels (e.g. 640)
+     * @param modelHeight Model input height in pixels (e.g. 640)
      */
     fun process(
         output: FloatArray,
@@ -39,27 +41,29 @@ internal class YoloPostProcessor(
         originalHeight: Int,
         letterboxScale: Float = 1f,
         letterboxPadX: Int = 0,
-        letterboxPadY: Int = 0
+        letterboxPadY: Int = 0,
+        modelWidth: Int = 640,
+        modelHeight: Int = 640
     ): List<Detection> {
         // Determine output format and extract detections
         val rawDetections = when (// YOLOv8/v11/v26 format: [1, 4+num_classes, num_detections]
             // (num_classes typically < num_detections)
             outputShape.size) {
             3 if outputShape[1] < outputShape[2] -> {
-                processTransposed(output, outputShape)
+                processTransposed(output, outputShape, modelWidth, modelHeight)
             }
             // YOLOv5 format: [1, num_detections, 4+1+num_classes] or [1, num_detections, 4+num_classes]
             3 if true -> {
-                processStandard(output, outputShape)
+                processStandard(output, outputShape, modelWidth, modelHeight)
             }
             // 2D output: [num_detections, 4+num_classes]
             2 -> {
-                processFlat(output, outputShape)
+                processFlat(output, outputShape, modelWidth, modelHeight)
             }
 
             else -> {
                 android.util.Log.w("EasyML", "Unknown output shape: ${outputShape.contentToString()}, attempting standard parse")
-                processStandard(output, outputShape)
+                processStandard(output, outputShape, modelWidth, modelHeight)
             }
         }
 
@@ -92,7 +96,7 @@ internal class YoloPostProcessor(
      * Where C = num_classes, N = num_candidate_detections
      * Each column is one detection: rows 0-3 are [cx, cy, w, h], rows 4+ are class scores
      */
-    private fun processTransposed(output: FloatArray, shape: IntArray): List<Detection> {
+    private fun processTransposed(output: FloatArray, shape: IntArray, modelWidth: Int, modelHeight: Int): List<Detection> {
         val numAttributes = shape[1]  // 4 + num_classes
         val numDetections = shape[2]  // e.g., 8400
         val numClasses = numAttributes - 4
@@ -122,10 +126,18 @@ internal class YoloPostProcessor(
             val score = maxScores[i]
             if (score < confidenceThreshold) continue
 
-            val cx = output[row0 + i]
-            val cy = output[numDetections + i]
-            val w = output[row2 + i]
-            val h = output[row3 + i]
+            var cx = output[row0 + i]
+            var cy = output[numDetections + i]
+            var w = output[row2 + i]
+            var h = output[row3 + i]
+
+            // If coordinates are normalized in [0, 1], scale up to model pixel dimensions
+            if (cx <= 1.5f && cy <= 1.5f && w <= 1.5f && h <= 1.5f) {
+                cx *= modelWidth
+                cy *= modelHeight
+                w *= modelWidth
+                h *= modelHeight
+            }
 
             val halfW = w * 0.5f
             val halfH = h * 0.5f
@@ -148,7 +160,7 @@ internal class YoloPostProcessor(
      * Each row is one detection: [cx, cy, w, h, obj_conf, class_scores...]
      * or [cx, cy, w, h, class_scores...] (no separate objectness)
      */
-    private fun processStandard(output: FloatArray, shape: IntArray): List<Detection> {
+    private fun processStandard(output: FloatArray, shape: IntArray, modelWidth: Int, modelHeight: Int): List<Detection> {
         val numDetections = shape[1]
         val numAttributes = shape[2]
 
@@ -179,10 +191,18 @@ internal class YoloPostProcessor(
 
             if (maxClassScore < confidenceThreshold) continue
 
-            val cx = output[base]
-            val cy = output[base + 1]
-            val w = output[base + 2]
-            val h = output[base + 3]
+            var cx = output[base]
+            var cy = output[base + 1]
+            var w = output[base + 2]
+            var h = output[base + 3]
+
+            // If coordinates are normalized in [0, 1], scale up to model pixel dimensions
+            if (cx <= 1.5f && cy <= 1.5f && w <= 1.5f && h <= 1.5f) {
+                cx *= modelWidth
+                cy *= modelHeight
+                w *= modelWidth
+                h *= modelHeight
+            }
 
             detections.add(
                 Detection(
@@ -200,9 +220,9 @@ internal class YoloPostProcessor(
     /**
      * Flat 2D format: output shape [N, 4+C]
      */
-    private fun processFlat(output: FloatArray, shape: IntArray): List<Detection> {
+    private fun processFlat(output: FloatArray, shape: IntArray, modelWidth: Int, modelHeight: Int): List<Detection> {
         // Treat as [1, N, attrs] with batch=1
-        return processStandard(output, intArrayOf(1, shape[0], shape[1]))
+        return processStandard(output, intArrayOf(1, shape[0], shape[1]), modelWidth, modelHeight)
     }
 
     /**

@@ -46,6 +46,8 @@ class ObjectDetector internal constructor(
     private val inputSize: Int
     private val labels: List<String>
     private val isFloatType: Boolean
+    private val isNCHW: Boolean
+    private val channels: Int
 
     // Pre-allocated ByteBuffers reused every frame — zero allocations during inference!
     private val inputByteBuffer: ByteBuffer
@@ -71,9 +73,20 @@ class ObjectDetector internal constructor(
             numThreads = config.numThreads
         )
 
-        // Auto-detect input size from model
-        val modelInputShape = engine.inputShape // e.g., [1, 640, 640, 3]
-        inputSize = config.inputSize ?: modelInputShape[1]
+        // Auto-detect input size and layout from model
+        val modelInputShape = engine.inputShape // e.g., [1, 3, 640, 640] (NCHW) or [1, 640, 640, 3] (NHWC)
+        val isNCHW = modelInputShape.size == 4 && modelInputShape[1] in 1..4 && modelInputShape.last() > 4
+        val (modelHeight, modelWidth, channels) = if (isNCHW) {
+            Triple(modelInputShape[2], modelInputShape[3], modelInputShape[1])
+        } else if (modelInputShape.size == 4) {
+            Triple(modelInputShape[1], modelInputShape[2], modelInputShape[3])
+        } else {
+            Triple(modelInputShape.getOrElse(1) { 640 }, modelInputShape.getOrElse(2) { 640 }, 3)
+        }
+
+        inputSize = config.inputSize ?: maxOf(modelWidth, modelHeight)
+        this.isNCHW = isNCHW
+        this.channels = channels
         isFloatType = engine.inputDataType == DataType.FLOAT32
 
         // Load labels
@@ -94,9 +107,9 @@ class ObjectDetector internal constructor(
             order(ByteOrder.nativeOrder())
         }
 
-        // Pre-allocate input buffer
+        // Pre-allocate input buffer: 1 * H * W * C * bytesPerChannel
         val bytesPerChannel = if (isFloatType) 4 else 1
-        inputByteBuffer = ByteBuffer.allocateDirect(1 * inputSize * inputSize * 3 * bytesPerChannel).apply {
+        inputByteBuffer = ByteBuffer.allocateDirect(1 * inputSize * inputSize * channels * bytesPerChannel).apply {
             order(ByteOrder.nativeOrder())
         }
 
@@ -143,18 +156,45 @@ class ObjectDetector internal constructor(
 
         // 3. Populate pre-allocated direct input buffer (fast normalization)
         inputByteBuffer.rewind()
-        if (isFloatType) {
-            val inv255 = 1f / 255f
-            for (pixel in pixelArray) {
-                inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
-                inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
-                inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+        if (isNCHW) {
+            // Planar format: RRR...GGG...BBB...
+            if (isFloatType) {
+                val inv255 = 1f / 255f
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+                }
+            } else {
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put((pixel and 0xFF).toByte())
+                }
             }
         } else {
-            for (pixel in pixelArray) {
-                inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
-                inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
-                inputByteBuffer.put((pixel and 0xFF).toByte())
+            // Interleaved format: RGBRGBRGB...
+            if (isFloatType) {
+                val inv255 = 1f / 255f
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
+                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
+                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+                }
+            } else {
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
+                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
+                    inputByteBuffer.put((pixel and 0xFF).toByte())
+                }
             }
         }
         inputByteBuffer.rewind()
@@ -175,7 +215,9 @@ class ObjectDetector internal constructor(
             originalHeight = srcH,
             letterboxScale = scale,
             letterboxPadX = padX,
-            letterboxPadY = padY
+            letterboxPadY = padY,
+            modelWidth = inputSize,
+            modelHeight = inputSize
         )
     }
 

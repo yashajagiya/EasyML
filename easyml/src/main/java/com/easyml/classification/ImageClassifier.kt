@@ -47,6 +47,8 @@ class ImageClassifier internal constructor(
     private val inputHeight: Int
     private val numClasses: Int
     private val isFloatType: Boolean
+    private val isNCHW: Boolean
+    private val channels: Int
 
     // Pre-allocated direct ByteBuffers reused every frame — zero allocations during inference!
     private val inputByteBuffer: ByteBuffer
@@ -70,9 +72,23 @@ class ImageClassifier internal constructor(
             numThreads = config.numThreads
         )
 
-        val inputShape = engine.inputShape // [1, height, width, 3]
-        inputHeight = inputShape[1]
-        inputWidth = inputShape[2]
+        val inputShape = engine.inputShape // [1, height, width, 3] or [1, 3, height, width]
+        val isNCHW = inputShape.size == 4 && inputShape[1] in 1..4 && inputShape.last() > 4
+        this.isNCHW = isNCHW
+        if (isNCHW) {
+            channels = inputShape[1]
+            inputHeight = inputShape[2]
+            inputWidth = inputShape[3]
+        } else if (inputShape.size == 4) {
+            inputHeight = inputShape[1]
+            inputWidth = inputShape[2]
+            channels = inputShape[3]
+        } else {
+            inputHeight = inputShape.getOrElse(1) { 224 }
+            inputWidth = inputShape.getOrElse(2) { 224 }
+            channels = 3
+        }
+
         numClasses = engine.outputShape.last()
         isFloatType = engine.inputDataType == DataType.FLOAT32
 
@@ -82,7 +98,7 @@ class ImageClassifier internal constructor(
         }
 
         val bytesPerChannel = if (isFloatType) 4 else 1
-        inputByteBuffer = ByteBuffer.allocateDirect(1 * inputHeight * inputWidth * 3 * bytesPerChannel).apply {
+        inputByteBuffer = ByteBuffer.allocateDirect(1 * inputHeight * inputWidth * channels * bytesPerChannel).apply {
             order(ByteOrder.nativeOrder())
         }
 
@@ -113,18 +129,43 @@ class ImageClassifier internal constructor(
 
         // 3. Fill input buffer
         inputByteBuffer.rewind()
-        if (isFloatType) {
-            val inv255 = 1f / 255f
-            for (pixel in pixelArray) {
-                inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
-                inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
-                inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+        if (isNCHW) {
+            if (isFloatType) {
+                val inv255 = 1f / 255f
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+                }
+            } else {
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
+                }
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put((pixel and 0xFF).toByte())
+                }
             }
         } else {
-            for (pixel in pixelArray) {
-                inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
-                inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
-                inputByteBuffer.put((pixel and 0xFF).toByte())
+            if (isFloatType) {
+                val inv255 = 1f / 255f
+                for (pixel in pixelArray) {
+                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
+                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
+                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+                }
+            } else {
+                for (pixel in pixelArray) {
+                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
+                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
+                    inputByteBuffer.put((pixel and 0xFF).toByte())
+                }
             }
         }
         inputByteBuffer.rewind()
