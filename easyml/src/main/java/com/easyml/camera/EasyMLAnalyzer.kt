@@ -4,6 +4,8 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.easyml.core.ImageUtils
 import com.easyml.detection.Detection
+import com.easyml.detection.DetectionSmoother
+import com.easyml.detection.InferenceMetrics
 import com.easyml.detection.ObjectDetector
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -11,24 +13,30 @@ import java.util.concurrent.atomic.AtomicBoolean
  * CameraX ImageAnalysis.Analyzer implementation for real-time object detection.
  *
  * Efficiently processes camera frames using the EasyML ObjectDetector.
- * Uses backpressure handling and optional frame rate capping to skip frames,
- * ensuring smooth camera preview without lag.
+ * Uses backpressure handling, optional frame rate capping, and temporal box smoothing.
  *
  * @param detector The ObjectDetector to use for detection
  * @param onResults Callback invoked with detection results for each processed frame
  * @param onFps Optional callback for FPS monitoring
  * @param onInferenceTime Optional callback for per-frame inference latency (ms)
+ * @param onInferenceMetrics Optional callback for granular microsecond latency breakdown
  * @param targetFps Optional maximum FPS limit (e.g. 30) to preserve battery
+ * @param enableSmoothing Whether to apply temporal EMA box smoothing to reduce jitter
+ * @param smoothingFactor EMA weight factor (0.0 to 1.0)
  */
 internal class EasyMLAnalyzer(
     private val detector: ObjectDetector,
     private val onResults: (List<Detection>, Int, Int) -> Unit,
     private val onFps: ((Float) -> Unit)? = null,
     private val onInferenceTime: ((Long) -> Unit)? = null,
-    private val targetFps: Int? = null
+    private val onInferenceMetrics: ((InferenceMetrics) -> Unit)? = null,
+    private val targetFps: Int? = null,
+    enableSmoothing: Boolean = true,
+    smoothingFactor: Float = 0.35f
 ) : ImageAnalysis.Analyzer {
 
     private val isProcessing = AtomicBoolean(false)
+    private val smoother: DetectionSmoother? = if (enableSmoothing) DetectionSmoother(smoothingFactor) else null
     private var lastFpsTime = System.currentTimeMillis()
     private var lastAnalyzedFrameTime = 0L
     private var frameCount = 0
@@ -60,25 +68,28 @@ internal class EasyMLAnalyzer(
             val imageHeight = bitmap.height
 
             // Run detection
-            val detections = detector.detect(bitmap)
-            val inferenceTime = detector.lastInferenceTimeMs
+            val rawDetections = detector.detect(bitmap)
+            val detections = smoother?.update(rawDetections) ?: rawDetections
+            val metrics = detector.lastMetrics
 
             // Recycle bitmap
             bitmap.recycle()
 
             // Report results
             onResults(detections, imageWidth, imageHeight)
-            onInferenceTime?.invoke(inferenceTime)
+            onInferenceTime?.invoke(metrics.totalMs.toLong())
+            onInferenceMetrics?.invoke(metrics)
 
-            // Calculate FPS
+            // Calculate FPS based on completed frame completion time
+            val completionTime = System.currentTimeMillis()
             frameCount++
-            val elapsed = currentTime - lastFpsTime
+            val elapsed = completionTime - lastFpsTime
             if (elapsed >= 1000) {
                 val fps = frameCount * 1000f / elapsed
-                android.util.Log.d("EasyML", "FPS: %.1f (inference: %d ms, detections: %d)".format(fps, inferenceTime, detections.size))
+                android.util.Log.d("EasyML", "FPS: %.1f (latency: %.1f ms, detections: %d)".format(fps, metrics.totalMs, detections.size))
                 onFps?.invoke(fps)
                 frameCount = 0
-                lastFpsTime = currentTime
+                lastFpsTime = completionTime
             }
         } catch (e: Exception) {
             android.util.Log.e("EasyML", "Error analyzing frame: ${e.message}", e)

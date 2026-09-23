@@ -75,11 +75,11 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.yashajagiya"
                 artifactId = "easyml"
-                version = "1.0.2"
+                version = "1.1.0"
 
                 pom {
                     name.set("EasyML")
-                    description.set("Ultra-fast, zero-allocation TFLite library for Android with YOLO, Image Classification, and CameraX Compose support.")
+                    description.set("Android-first low-overhead TFLite inference engine with YOLO26/v11/v8/v5 decoders, class-aware NMS, Coroutines, and CameraX Compose support.")
                     url.set("https://github.com/yashajagiya/easyml")
                     licenses {
                         license {

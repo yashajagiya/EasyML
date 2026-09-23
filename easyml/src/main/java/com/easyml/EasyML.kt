@@ -9,57 +9,39 @@ import com.easyml.detection.DetectorConfig
 import com.easyml.detection.ObjectDetector
 import com.easyml.raw.RawConfig
 import com.easyml.raw.RawRunner
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
- * # EasyML — Simple TFLite for Android
+ * # EasyML — Android-first Low-Overhead TFLite Engine
  *
  * Entry point for all EasyML functionality. Create detectors, classifiers,
  * or raw model runners with a simple Kotlin DSL.
  *
- * ## Object Detection (YOLO, SSD, etc.)
+ * ## Object Detection (YOLO26, YOLO11, YOLOv8, YOLOv5)
  * ```kotlin
  * val detector = EasyML.objectDetector(context) {
- *     model = ModelSource.Asset("yolon.tflite")
+ *     model = ModelSource.Asset("yolo26n.tflite")
  *     labels = LabelSource.Asset("labels.txt")
- *     confidenceThreshold = 0.5f
- *     device = InferenceDevice.GPU
+ *     confidenceThreshold = 0.35f
+ *     device = InferenceDevice.AUTO
  * }
  * val results = detector.detect(bitmap)
  * ```
  *
- * ## Image Classification (MobileNet, EfficientNet, etc.)
+ * ## Non-Blocking Asynchronous Model Loading (Coroutines)
  * ```kotlin
- * val classifier = EasyML.classifier(context) {
- *     model = ModelSource.Asset("mobilenet.tflite")
- *     labels = LabelSource.Asset("labels.txt")
+ * lifecycleScope.launch {
+ *     val detector = EasyML.loadDetectorAsync(context) {
+ *         model = ModelSource.Asset("yolo26n.tflite")
+ *     }
  * }
- * val categories = classifier.classify(bitmap)
- * ```
- *
- * ## Raw Model (any .tflite)
- * ```kotlin
- * val runner = EasyML.raw(context) {
- *     model = ModelSource.Asset("custom.tflite")
- * }
- * runner.run(inputBuffer, outputBuffer)
- * ```
- *
- * ## Live Camera Detection (Compose)
- * ```kotlin
- * EasyMLCameraView(
- *     detector = detector,
- *     showOverlay = true,
- *     showFps = true
- * )
  * ```
  */
 object EasyML {
 
     /**
-     * Create an [ObjectDetector] with DSL configuration.
-     *
-     * Supports YOLO (v5, v8, v11, v26), SSD, and other detection models.
-     * Automatically detects the output tensor format and applies appropriate post-processing.
+     * Create an [ObjectDetector] with DSL configuration synchronously.
      */
     fun objectDetector(
         context: Context,
@@ -70,10 +52,18 @@ object EasyML {
     }
 
     /**
-     * Create an [ImageClassifier] with DSL configuration.
-     *
-     * Supports MobileNet, EfficientNet, ResNet, and any classification model
-     * that outputs a 1D probability vector.
+     * Asynchronously load and initialize an [ObjectDetector] on [Dispatchers.IO]
+     * to eliminate app launch ANRs and UI frame drops.
+     */
+    suspend fun loadDetectorAsync(
+        context: Context,
+        config: DetectorConfig.() -> Unit
+    ): ObjectDetector = withContext(Dispatchers.IO) {
+        objectDetector(context, config)
+    }
+
+    /**
+     * Create an [ImageClassifier] with DSL configuration synchronously.
      */
     fun classifier(
         context: Context,
@@ -84,10 +74,18 @@ object EasyML {
     }
 
     /**
+     * Asynchronously load and initialize an [ImageClassifier] on [Dispatchers.IO].
+     */
+    suspend fun loadClassifierAsync(
+        context: Context,
+        config: ClassifierConfig.() -> Unit
+    ): ImageClassifier = withContext(Dispatchers.IO) {
+        classifier(context, config)
+    }
+
+    /**
      * Create a [RawRunner] with DSL configuration.
-     *
-     * Universal runner for ANY TFLite model. No assumptions about input/output format.
-     * You handle your own pre-processing and post-processing.
+     * Universal runner for ANY TFLite model with custom pre/post-processing.
      */
     fun raw(
         context: Context,

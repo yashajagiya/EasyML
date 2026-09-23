@@ -2,22 +2,22 @@ package com.easyml.core
 
 import android.util.Log
 import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.gpu.GpuDelegate
 
 /**
- * Hardware acceleration target for inference.
+ * Hardware acceleration target for model inference.
  *
- * - [AUTO]: Recommended default. Automatically checks device GPU compatibility;
- *          uses GPU delegate if supported, or seamlessly falls back to CPU
- *          with XNNPACK (ARM NEON SIMD) acceleration.
- * - [GPU]: Uses the device's GPU via OpenGL/OpenCL (2-5x faster for neural networks).
- * - [CPU]: Fast multi-threaded CPU inference powered by XNNPACK.
- * - [NNAPI]: Android Neural Networks API.
+ * - [AUTO]: Recommended default. Tries GPU delegate with FP16 precision, then NNAPI,
+ *          then seamlessly falls back to CPU with XNNPACK SIMD acceleration.
+ * - [GPU]: Attempts GPU inference with FP16 precision. Falls back to CPU if unsupported.
+ * - [GPU_STRICT]: Strict GPU execution. Throws [IllegalStateException] if GPU delegate fails to initialize.
+ * - [CPU]: Multi-threaded CPU inference powered by XNNPACK (ARM NEON / AVX).
+ * - [NNAPI]: Android Neural Networks API hardware acceleration.
  */
 enum class InferenceDevice {
     AUTO,
     GPU,
+    GPU_STRICT,
     CPU,
     NNAPI;
 
@@ -61,6 +61,12 @@ enum class InferenceDevice {
                     options.setUseXNNPACK(true)
                     null
                 }
+            }
+            GPU_STRICT -> {
+                val gpu = createGpuDelegate(useFp16 = useFp16)
+                    ?: throw IllegalStateException("GPU acceleration was strictly requested (InferenceDevice.GPU_STRICT), but GPU delegate initialization failed on this device.")
+                options.addDelegate(gpu)
+                gpu
             }
             CPU -> {
                 options.setUseXNNPACK(true)
