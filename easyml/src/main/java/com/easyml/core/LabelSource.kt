@@ -70,8 +70,7 @@ sealed class LabelSource {
          * or an index-mapped dictionary `{"0": "cat", "1": "dog"}` / `{"cat": 0, "dog": 1}`.
          */
         fun parseJsonLabels(jsonContent: String): List<String> {
-            val element = Json.parseToJsonElement(jsonContent)
-            return when (element) {
+            return when (val element = Json.parseToJsonElement(jsonContent)) {
                 is JsonArray -> {
                     element.map { it.jsonPrimitive.content }
                 }

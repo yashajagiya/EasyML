@@ -246,7 +246,6 @@ class ObjectDetector internal constructor(
             val limit = numPixels - 3
             var i = 0
             if (isNCHW) {
-                val plane1 = numPixels
                 val plane2 = numPixels * 2
                 while (i < limit) {
                     val p0 = pixelArray[i]
@@ -259,10 +258,10 @@ class ObjectDetector internal constructor(
                     inputFloatArray[i + 2] = NORM_TABLE[(p2 ushr 16) and 0xFF]
                     inputFloatArray[i + 3] = NORM_TABLE[(p3 ushr 16) and 0xFF]
 
-                    inputFloatArray[plane1 + i] = NORM_TABLE[(p0 ushr 8) and 0xFF]
-                    inputFloatArray[plane1 + i + 1] = NORM_TABLE[(p1 ushr 8) and 0xFF]
-                    inputFloatArray[plane1 + i + 2] = NORM_TABLE[(p2 ushr 8) and 0xFF]
-                    inputFloatArray[plane1 + i + 3] = NORM_TABLE[(p3 ushr 8) and 0xFF]
+                    inputFloatArray[numPixels + i] = NORM_TABLE[(p0 ushr 8) and 0xFF]
+                    inputFloatArray[numPixels + i + 1] = NORM_TABLE[(p1 ushr 8) and 0xFF]
+                    inputFloatArray[numPixels + i + 2] = NORM_TABLE[(p2 ushr 8) and 0xFF]
+                    inputFloatArray[numPixels + i + 3] = NORM_TABLE[(p3 ushr 8) and 0xFF]
 
                     inputFloatArray[plane2 + i] = NORM_TABLE[p0 and 0xFF]
                     inputFloatArray[plane2 + i + 1] = NORM_TABLE[p1 and 0xFF]
@@ -274,7 +273,7 @@ class ObjectDetector internal constructor(
                 while (i < numPixels) {
                     val p = pixelArray[i]
                     inputFloatArray[i] = NORM_TABLE[(p ushr 16) and 0xFF]
-                    inputFloatArray[plane1 + i] = NORM_TABLE[(p ushr 8) and 0xFF]
+                    inputFloatArray[numPixels + i] = NORM_TABLE[(p ushr 8) and 0xFF]
                     inputFloatArray[plane2 + i] = NORM_TABLE[p and 0xFF]
                     i++
                 }
