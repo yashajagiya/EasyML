@@ -2,6 +2,7 @@ package com.easyml.camera
 
 import android.Manifest
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -19,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,28 +46,38 @@ import java.util.concurrent.Executors
  *
  * Handles:
  * - Camera permission request
- * - CameraX Preview + ImageAnalysis binding
- * - Real-time inference via [ObjectDetector]
- * - Optional built-in bounding box overlay
- * - FPS counter
+ * - CameraX Preview + ImageAnalysis binding with hardware ISP downscaling to detector input size
+ * - Real-time inference via [ObjectDetector] with zero-allocation buffers
+ * - Built-in bounding box overlay with configurable styling (rounded corners, labels, confidence)
+ * - Real-time FPS and latency counter
  *
  * Usage:
  * ```kotlin
  * EasyMLCameraView(
  *     detector = myDetector,
  *     onResults = { detections -> /* your custom handling */ },
- *     showOverlay = true,   // built-in bounding boxes
- *     showFps = true        // FPS counter
+ *     showOverlay = true,
+ *     showFps = true,
+ *     showInferenceTime = true,
+ *     targetFps = 30
  * )
  * ```
  *
  * @param detector The [ObjectDetector] instance
  * @param modifier Compose modifier
- * @param onResults Callback with detection results per frame (gives you freedom to do anything)
+ * @param onResults Callback with detection results per frame
+ * @param onInferenceTime Optional callback returning per-frame inference duration in milliseconds
  * @param showOverlay If true, draws built-in bounding boxes. Default: true
- * @param showFps If true, shows FPS counter. Default: true
+ * @param showFps If true, shows FPS badge. Default: true
+ * @param showInferenceTime If true, shows inference latency in the FPS badge. Default: true
+ * @param showLabels Whether to show class labels on bounding boxes. Default: true
+ * @param showConfidence Whether to show confidence % on bounding boxes. Default: true
+ * @param targetFps Optional maximum FPS limit (e.g. 30) to preserve battery. Default: null (unlimited)
  * @param lensFacing Camera to use. Default: BACK
- * @param overlayColor Color for bounding boxes
+ * @param overlayColor Color for bounding boxes. Default: #00E676 (vibrant green)
+ * @param strokeWidth Bounding box outline width in pixels. Default: 4f
+ * @param cornerRadius Rounded corner radius for bounding boxes and labels. Default: 8f
+ * @param labelSize Font size for detection labels in sp. Default: 14
  */
 @OptIn(ExperimentalPermissionsApi::class)
 @Suppress("UnstableCollections")
@@ -75,9 +87,17 @@ fun EasyMLCameraView(
     modifier: Modifier = Modifier,
     showOverlay: Boolean = true,
     showFps: Boolean = true,
+    showInferenceTime: Boolean = true,
+    showLabels: Boolean = true,
+    showConfidence: Boolean = true,
+    targetFps: Int? = null,
     lensFacing: Int = CameraSelector.LENS_FACING_BACK,
     overlayColor: Color = Color(0xFF00E676),
-    onResults: ((List<Detection>) -> Unit)? = null
+    strokeWidth: Float = 4f,
+    cornerRadius: Float = 8f,
+    labelSize: Int = 14,
+    onResults: ((List<Detection>) -> Unit)? = null,
+    onInferenceTime: ((Long) -> Unit)? = null
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
@@ -87,6 +107,7 @@ fun EasyMLCameraView(
     var imageWidth by remember { mutableIntStateOf(1) }
     var imageHeight by remember { mutableIntStateOf(1) }
     var fps by remember { mutableFloatStateOf(0f) }
+    var inferenceTimeMs by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         if (!cameraPermissionState.status.isGranted) {
@@ -124,83 +145,103 @@ fun EasyMLCameraView(
             // Camera preview
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                val previewView = PreviewView(ctx).apply {
-                    scaleType = PreviewView.ScaleType.FILL_CENTER
-                }
-
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-
-                    val preview = Preview.Builder().build().also {
-                        it.surfaceProvider = previewView.surfaceProvider
+                factory = { ctx ->
+                    val previewView = PreviewView(ctx).apply {
+                        scaleType = PreviewView.ScaleType.FILL_CENTER
                     }
 
-                    val imageAnalysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                        .build()
+                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                    cameraProviderFuture.addListener({
+                        val cameraProvider = cameraProviderFuture.get()
 
-                    val analyzer = EasyMLAnalyzer(
-                        detector = detector,
-                        onResults = { results, w, h ->
-                            detections = results
-                            imageWidth = w
-                            imageHeight = h
-                            onResults?.invoke(results)
-                        },
-                        onFps = { fps = it }
-                    )
+                        val preview = Preview.Builder().build().also {
+                            it.surfaceProvider = previewView.surfaceProvider
+                        }
 
-                    imageAnalysis.setAnalyzer(cameraExecutor, analyzer)
+                        // Hardware-assisted downscaling: ask CameraX to deliver frames matching detector input size
+                        val targetResolution = Size(detector.getInputSize(), detector.getInputSize())
+                        val imageAnalysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                            .setTargetResolution(targetResolution)
+                            .build()
 
-                    val cameraSelector = CameraSelector.Builder()
-                        .requireLensFacing(lensFacing)
-                        .build()
-
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            imageAnalysis
+                        val analyzer = EasyMLAnalyzer(
+                            detector = detector,
+                            targetFps = targetFps,
+                            onResults = { results, w, h ->
+                                detections = results
+                                imageWidth = w
+                                imageHeight = h
+                                onResults?.invoke(results)
+                            },
+                            onFps = { fps = it },
+                            onInferenceTime = { time ->
+                                inferenceTimeMs = time
+                                onInferenceTime?.invoke(time)
+                            }
                         )
-                    } catch (e: Exception) {
-                        Log.e("EasyML", "Camera binding failed: ${e.message}", e)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
 
-                previewView
+                        imageAnalysis.setAnalyzer(cameraExecutor, analyzer)
+
+                        val cameraSelector = CameraSelector.Builder()
+                            .requireLensFacing(lensFacing)
+                            .build()
+
+                        try {
+                            cameraProvider.unbindAll()
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                cameraSelector,
+                                preview,
+                                imageAnalysis
+                            )
+                        } catch (e: Exception) {
+                            Log.e("EasyML", "Camera binding failed: ${e.message}", e)
+                        }
+                    }, ContextCompat.getMainExecutor(ctx))
+
+                    previewView
+                }
+            )
+
+            // Detection overlay
+            if (showOverlay && detections.isNotEmpty()) {
+                DetectionOverlay(
+                    detections = detections.toDetectionList(),
+                    imageWidth = imageWidth,
+                    imageHeight = imageHeight,
+                    modifier = Modifier.fillMaxSize(),
+                    boxColor = overlayColor,
+                    strokeWidth = strokeWidth,
+                    cornerRadius = cornerRadius,
+                    labelSize = labelSize,
+                    showLabels = showLabels,
+                    showConfidence = showConfidence,
+                    isMirrored = lensFacing == CameraSelector.LENS_FACING_FRONT
+                )
             }
-        )
 
-        // Detection overlay
-        if (showOverlay && detections.isNotEmpty()) {
-            DetectionOverlay(
-                detections = detections.toDetectionList(),
-                imageWidth = imageWidth,
-                imageHeight = imageHeight,
-                modifier = Modifier.fillMaxSize(),
-                boxColor = overlayColor,
-                isMirrored = lensFacing == CameraSelector.LENS_FACING_FRONT
-            )
-        }
-
-        // FPS counter
-        if (showFps) {
-            Text(
-                text = "%.1f FPS".format(fps),
-                color = Color.White,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(12.dp)
-                    .background(Color(0xAA000000), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            // Performance badge (FPS & Inference Latency)
+            if (showFps || showInferenceTime) {
+                val badgeText = buildString {
+                    if (showFps) append("%.1f FPS".format(fps))
+                    if (showFps && showInferenceTime && inferenceTimeMs > 0) append("  •  ")
+                    if (showInferenceTime && inferenceTimeMs > 0) append("${inferenceTimeMs}ms")
+                }
+                if (badgeText.isNotEmpty()) {
+                    Text(
+                        text = badgeText,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(12.dp)
+                            .background(Color(0xCC000000), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
         }
     }
-}
 }

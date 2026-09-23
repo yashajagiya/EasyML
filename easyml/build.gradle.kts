@@ -40,6 +40,7 @@ dependencies {
     api(libs.tensorflow.lite)
     // GPU delegate — optional at runtime, but available
     implementation(libs.tensorflow.lite.gpu)
+    implementation(libs.tensorflow.lite.gpu.api)
 
     // CameraX
     implementation(libs.camerax.core)
@@ -74,7 +75,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.yashajagiya"
                 artifactId = "easyml"
-                version = "1.0.1"
+                version = "1.0.2"
 
                 pom {
                     name.set("EasyML")

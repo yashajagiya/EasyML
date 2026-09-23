@@ -17,7 +17,8 @@ internal class TFLiteEngine(
     context: Context,
     modelSource: ModelSource,
     device: InferenceDevice = InferenceDevice.CPU,
-    numThreads: Int = 4
+    numThreads: Int = 4,
+    useFp16: Boolean = true
 ) : Closeable {
 
     private val interpreter: Interpreter
@@ -46,9 +47,27 @@ internal class TFLiteEngine(
 
     init {
         val modelBuffer = modelSource.resolve(context)
-        val options = Interpreter.Options()
-        gpuDelegate = device.configure(options, numThreads)
-        interpreter = Interpreter(modelBuffer, options)
+        var delegate: GpuDelegate? = null
+        var interp: Interpreter? = null
+
+        try {
+            val options = Interpreter.Options()
+            delegate = device.configure(options, numThreads, useFp16)
+            interp = Interpreter(modelBuffer, options)
+        } catch (e: Throwable) {
+            android.util.Log.w("EasyML", "Delegate initialization with $device failed (${e.message}), falling back to CPU")
+            delegate?.close()
+            delegate = null
+            val fallbackOptions = Interpreter.Options().apply {
+                setUseXNNPACK(true)
+                val availableCores = Runtime.getRuntime().availableProcessors()
+                setNumThreads(minOf(availableCores, numThreads.coerceIn(1, 4)))
+            }
+            interp = Interpreter(modelBuffer, fallbackOptions)
+        }
+
+        this.gpuDelegate = delegate
+        this.interpreter = interp
     }
 
     /**

@@ -42,6 +42,21 @@ class DetectorConfig {
     /** Number of CPU threads for inference. Default: 4 */
     var numThreads: Int = 4
 
+    /** Enable FP16 half-precision math for GPU acceleration (2-4x faster). Default: true */
+    var useFp16: Boolean = true
+
+    /**
+     * Enable exponential moving average (EMA) box smoothing to eliminate jitter between frames.
+     * Default: true
+     */
+    var enableSmoothing: Boolean = true
+
+    /**
+     * Smoothing factor for EMA box smoothing [0.0 - 1.0].
+     * Higher = more responsive to fast motion; Lower = smoother/steadier boxes. Default: 0.65
+     */
+    var smoothingFactor: Float = 0.65f
+
     /**
      * Model input size override. If null (default), auto-detected from model tensor shape.
      * Set this only if auto-detection fails.
@@ -53,5 +68,6 @@ class DetectorConfig {
         check(confidenceThreshold in 0f..1f) { "EasyML: confidenceThreshold must be in [0, 1]" }
         check(iouThreshold in 0f..1f) { "EasyML: iouThreshold must be in [0, 1]" }
         check(maxResults > 0) { "EasyML: maxResults must be > 0" }
+        check(smoothingFactor in 0f..1f) { "EasyML: smoothingFactor must be in [0, 1]" }
     }
 }

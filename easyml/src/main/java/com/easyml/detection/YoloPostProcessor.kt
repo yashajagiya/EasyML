@@ -18,8 +18,22 @@ internal class YoloPostProcessor(
     private val confidenceThreshold: Float,
     private val iouThreshold: Float,
     private val maxResults: Int,
-    private val labels: List<String>
+    private val labels: List<String>,
+    private val enableSmoothing: Boolean = true,
+    private val smoothingFactor: Float = 0.65f
 ) {
+
+    private var cachedMaxScores: FloatArray? = null
+    private var cachedMaxClassIndices: IntArray? = null
+    private var previousDetections: List<Detection> = emptyList()
+
+    private fun getScoreBuffers(size: Int): Pair<FloatArray, IntArray> {
+        val scores = cachedMaxScores?.takeIf { it.size == size } ?: FloatArray(size).also { cachedMaxScores = it }
+        val indices = cachedMaxClassIndices?.takeIf { it.size == size } ?: IntArray(size).also { cachedMaxClassIndices = it }
+        scores.fill(0f)
+        indices.fill(0)
+        return Pair(scores, indices)
+    }
 
     /**
      * Process the raw model output tensor into a list of [Detection] results.
@@ -71,7 +85,7 @@ internal class YoloPostProcessor(
         val nmsResults = nonMaxSuppression(rawDetections)
 
         // Map coordinates back to original image space and apply labels
-        return nmsResults.take(maxResults).map { det ->
+        val mappedResults = nmsResults.take(maxResults).map { det ->
             // Remove letterbox padding and scale to original image
             val left = ((det.boundingBox.left - letterboxPadX) / letterboxScale)
                 .coerceIn(0f, originalWidth.toFloat())
@@ -89,6 +103,38 @@ internal class YoloPostProcessor(
                 confidence = det.confidence
             )
         }
+
+        return smoothDetections(mappedResults)
+    }
+
+    private fun smoothDetections(newDetections: List<Detection>): List<Detection> {
+        if (!enableSmoothing || previousDetections.isEmpty()) {
+            previousDetections = newDetections
+            return newDetections
+        }
+
+        val smoothed = newDetections.map { newDet ->
+            val prevDet = previousDetections.firstOrNull { prev ->
+                prev.labelIndex == newDet.labelIndex && iou(prev.boundingBox, newDet.boundingBox) > 0.35f
+            }
+
+            if (prevDet != null) {
+                val alpha = smoothingFactor
+                val invAlpha = 1f - alpha
+                val smoothedBox = RectF(
+                    newDet.boundingBox.left * alpha + prevDet.boundingBox.left * invAlpha,
+                    newDet.boundingBox.top * alpha + prevDet.boundingBox.top * invAlpha,
+                    newDet.boundingBox.right * alpha + prevDet.boundingBox.right * invAlpha,
+                    newDet.boundingBox.bottom * alpha + prevDet.boundingBox.bottom * invAlpha
+                )
+                newDet.copy(boundingBox = smoothedBox)
+            } else {
+                newDet
+            }
+        }
+
+        previousDetections = smoothed
+        return smoothed
     }
 
     /**
@@ -102,8 +148,7 @@ internal class YoloPostProcessor(
         val numClasses = numAttributes - 4
 
         // Sequential memory access pass (eliminates 670k cache misses)
-        val maxScores = FloatArray(numDetections)
-        val maxClassIndices = IntArray(numDetections)
+        val (maxScores, maxClassIndices) = getScoreBuffers(numDetections)
 
         for (c in 0 until numClasses) {
             val rowOffset = (4 + c) * numDetections

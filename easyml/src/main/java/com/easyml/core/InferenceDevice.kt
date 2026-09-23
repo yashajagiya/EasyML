@@ -25,26 +25,34 @@ enum class InferenceDevice {
      * Applies the appropriate delegate configuration to TFLite Interpreter.Options.
      * Returns a GpuDelegate if GPU is selected (caller must close it), or null.
      */
-    internal fun configure(options: Interpreter.Options, numThreads: Int = 4): GpuDelegate? {
-        // Optimal thread count clamped to available cores to prevent core contention and overheating
+    internal fun configure(
+        options: Interpreter.Options,
+        numThreads: Int = 4,
+        useFp16: Boolean = true
+    ): GpuDelegate? {
         val availableCores = Runtime.getRuntime().availableProcessors()
         val optimalThreads = minOf(availableCores, numThreads.coerceIn(1, 4))
         options.setNumThreads(optimalThreads)
 
         return when (this) {
             AUTO -> {
-                val gpu = createGpuDelegate(forceGpu = false)
+                val gpu = createGpuDelegate(useFp16 = useFp16)
                 if (gpu != null) {
                     options.addDelegate(gpu)
                     gpu
                 } else {
-                    // Fall back to CPU with XNNPACK SIMD acceleration
-                    options.setUseXNNPACK(true)
-                    null
+                    // Try NNAPI or fall back to CPU with XNNPACK
+                    try {
+                        options.setUseNNAPI(true)
+                        null
+                    } catch (_: Throwable) {
+                        options.setUseXNNPACK(true)
+                        null
+                    }
                 }
             }
             GPU -> {
-                val gpu = createGpuDelegate(forceGpu = true)
+                val gpu = createGpuDelegate(useFp16 = useFp16)
                 if (gpu != null) {
                     options.addDelegate(gpu)
                     gpu
@@ -70,21 +78,15 @@ enum class InferenceDevice {
         }
     }
 
-    private fun createGpuDelegate(forceGpu: Boolean): GpuDelegate? {
+    private fun createGpuDelegate(useFp16: Boolean): GpuDelegate? {
         return try {
-            val isSupported = try {
-                CompatibilityList().isDelegateSupportedOnThisDevice
-            } catch (_: Throwable) {
-                false
+            val delegateOptions = GpuDelegate.Options().apply {
+                setPrecisionLossAllowed(useFp16)
+                setInferencePreference(GpuDelegate.Options.INFERENCE_PREFERENCE_FAST_SINGLE_ANSWER)
             }
-
-            if (isSupported || forceGpu) {
-                GpuDelegate()
-            } else {
-                null
-            }
+            GpuDelegate(delegateOptions)
         } catch (e: Throwable) {
-            Log.w("EasyML", "GPU initialization failed, using CPU: ${e.message}")
+            Log.w("EasyML", "GPU initialization failed: ${e.message}")
             null
         }
     }

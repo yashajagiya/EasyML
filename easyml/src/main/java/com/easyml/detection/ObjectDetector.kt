@@ -55,22 +55,29 @@ class ObjectDetector internal constructor(
     private val outputBuffer: FloatArray
     private val outputShape: IntArray
 
-    // Pre-allocated letterboxing canvas and bitmap (allocated once, never recreated)
+    // Pre-allocated drawing structures
     private val letterboxBitmap: Bitmap
     private val letterboxCanvas: Canvas
     private val letterboxPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val pixelArray: IntArray
+    private val inputFloatArray: FloatArray?
+    private val inputByteArray: ByteArray?
     private val drawMatrix = Matrix()
+
+    /** Latency of the most recent inference execution in milliseconds */
+    var lastInferenceTimeMs: Long = 0L
+        private set
 
     init {
         config.validate()
 
-        // Initialize the TFLite engine
+        // Initialize the TFLite engine with FP16 support
         engine = TFLiteEngine(
             context = context,
             modelSource = config.model,
             device = config.device,
-            numThreads = config.numThreads
+            numThreads = config.numThreads,
+            useFp16 = config.useFp16
         )
 
         // Auto-detect input size and layout from model
@@ -109,21 +116,28 @@ class ObjectDetector internal constructor(
 
         // Pre-allocate input buffer: 1 * H * W * C * bytesPerChannel
         val bytesPerChannel = if (isFloatType) 4 else 1
-        inputByteBuffer = ByteBuffer.allocateDirect(1 * inputSize * inputSize * channels * bytesPerChannel).apply {
+        val totalElements = inputSize * inputSize * channels
+        inputByteBuffer = ByteBuffer.allocateDirect(1 * totalElements * bytesPerChannel).apply {
             order(ByteOrder.nativeOrder())
         }
+
+        // Pre-allocate bulk conversion arrays
+        inputFloatArray = if (isFloatType) FloatArray(totalElements) else null
+        inputByteArray = if (!isFloatType) ByteArray(totalElements) else null
 
         // Pre-allocate letterbox drawing structures
         letterboxBitmap = createBitmap(inputSize, inputSize)
         letterboxCanvas = Canvas(letterboxBitmap)
         pixelArray = IntArray(inputSize * inputSize)
 
-        // Initialize post-processor
+        // Initialize post-processor with smoothing support
         postProcessor = YoloPostProcessor(
             confidenceThreshold = config.confidenceThreshold,
             iouThreshold = config.iouThreshold,
             maxResults = config.maxResults,
-            labels = labels
+            labels = labels,
+            enableSmoothing = config.enableSmoothing,
+            smoothingFactor = config.smoothingFactor
         )
     }
 
@@ -136,6 +150,7 @@ class ObjectDetector internal constructor(
      * @return List of detected objects, sorted by confidence (highest first)
      */
     fun detect(bitmap: Bitmap): List<Detection> {
+        val startTime = System.currentTimeMillis()
         val srcW = bitmap.width
         val srcH = bitmap.height
         val scale = minOf(inputSize.toFloat() / srcW, inputSize.toFloat() / srcH)
@@ -154,47 +169,60 @@ class ObjectDetector internal constructor(
         // 2. Extract pixels into pre-allocated IntArray
         letterboxBitmap.getPixels(pixelArray, 0, inputSize, 0, 0, inputSize, inputSize)
 
-        // 3. Populate pre-allocated direct input buffer (fast normalization)
-        inputByteBuffer.rewind()
+        // 3. Fast bulk normalization directly into direct memory
+        val numPixels = inputSize * inputSize
         if (isNCHW) {
-            // Planar format: RRR...GGG...BBB...
             if (isFloatType) {
+                val floatArray = inputFloatArray!!
                 val inv255 = 1f / 255f
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
+                val gOffset = numPixels
+                val bOffset = numPixels * 2
+                for (i in 0 until numPixels) {
+                    val pixel = pixelArray[i]
+                    floatArray[i] = ((pixel shr 16) and 0xFF) * inv255
+                    floatArray[gOffset + i] = ((pixel shr 8) and 0xFF) * inv255
+                    floatArray[bOffset + i] = (pixel and 0xFF) * inv255
                 }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
-                }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
-                }
+                inputByteBuffer.rewind()
+                inputByteBuffer.asFloatBuffer().put(floatArray)
             } else {
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
+                val byteArray = inputByteArray!!
+                val gOffset = numPixels
+                val bOffset = numPixels * 2
+                for (i in 0 until numPixels) {
+                    val pixel = pixelArray[i]
+                    byteArray[i] = ((pixel shr 16) and 0xFF).toByte()
+                    byteArray[gOffset + i] = ((pixel shr 8) and 0xFF).toByte()
+                    byteArray[bOffset + i] = (pixel and 0xFF).toByte()
                 }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
-                }
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put((pixel and 0xFF).toByte())
-                }
+                inputByteBuffer.rewind()
+                inputByteBuffer.put(byteArray)
             }
         } else {
-            // Interleaved format: RGBRGBRGB...
+            // NHWC: Interleaved
             if (isFloatType) {
+                val floatArray = inputFloatArray!!
                 val inv255 = 1f / 255f
-                for (pixel in pixelArray) {
-                    inputByteBuffer.putFloat(((pixel shr 16) and 0xFF) * inv255)
-                    inputByteBuffer.putFloat(((pixel shr 8) and 0xFF) * inv255)
-                    inputByteBuffer.putFloat((pixel and 0xFF) * inv255)
+                var idx = 0
+                for (i in 0 until numPixels) {
+                    val pixel = pixelArray[i]
+                    floatArray[idx++] = ((pixel shr 16) and 0xFF) * inv255
+                    floatArray[idx++] = ((pixel shr 8) and 0xFF) * inv255
+                    floatArray[idx++] = (pixel and 0xFF) * inv255
                 }
+                inputByteBuffer.rewind()
+                inputByteBuffer.asFloatBuffer().put(floatArray)
             } else {
-                for (pixel in pixelArray) {
-                    inputByteBuffer.put(((pixel shr 16) and 0xFF).toByte())
-                    inputByteBuffer.put(((pixel shr 8) and 0xFF).toByte())
-                    inputByteBuffer.put((pixel and 0xFF).toByte())
+                val byteArray = inputByteArray!!
+                var idx = 0
+                for (i in 0 until numPixels) {
+                    val pixel = pixelArray[i]
+                    byteArray[idx++] = ((pixel shr 16) and 0xFF).toByte()
+                    byteArray[idx++] = ((pixel shr 8) and 0xFF).toByte()
+                    byteArray[idx++] = (pixel and 0xFF).toByte()
                 }
+                inputByteBuffer.rewind()
+                inputByteBuffer.put(byteArray)
             }
         }
         inputByteBuffer.rewind()
@@ -208,7 +236,7 @@ class ObjectDetector internal constructor(
         outputByteBuffer.asFloatBuffer().get(outputBuffer)
 
         // 6. Post-process with cache-friendly algorithms
-        return postProcessor.process(
+        val results = postProcessor.process(
             output = outputBuffer,
             outputShape = outputShape,
             originalWidth = srcW,
@@ -219,6 +247,9 @@ class ObjectDetector internal constructor(
             modelWidth = inputSize,
             modelHeight = inputSize
         )
+
+        lastInferenceTimeMs = System.currentTimeMillis() - startTime
+        return results
     }
 
     /**
