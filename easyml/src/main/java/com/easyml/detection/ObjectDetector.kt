@@ -51,8 +51,12 @@ class ObjectDetector internal constructor(
 
     private val engine: TFLiteEngine
     private val decoder: DetectionDecoder = config.decoder
+    private val confidenceThreshold: Float = config.confidenceThreshold
     private val nms = NonMaxSuppression(config.iouThreshold, config.maxResults, config.classAgnosticNms)
     private val smoother: DetectionSmoother? = if (config.enableSmoothing) DetectionSmoother(config.smoothingFactor) else null
+
+    /** Whether internal temporal smoothing is active on this detector */
+    val isSmoothingEnabled: Boolean get() = smoother != null
 
     /** Model input width in pixels */
     val inputWidth: Int
@@ -204,22 +208,21 @@ class ObjectDetector internal constructor(
         val numPixels = inputWidth * inputHeight
 
         if (isFloatType && inputFloatArray != null) {
-            val inv255 = 1f / 255f
             if (isNCHW) {
                 val plane2 = numPixels * 2
                 for (i in 0 until numPixels) {
                     val pixel = pixelArray[i]
-                    inputFloatArray[i] = ((pixel shr 16) and 0xFF) * inv255
-                    inputFloatArray[numPixels + i] = ((pixel shr 8) and 0xFF) * inv255
-                    inputFloatArray[plane2 + i] = (pixel and 0xFF) * inv255
+                    inputFloatArray[i] = NORM_TABLE[(pixel shr 16) and 0xFF]
+                    inputFloatArray[numPixels + i] = NORM_TABLE[(pixel shr 8) and 0xFF]
+                    inputFloatArray[plane2 + i] = NORM_TABLE[pixel and 0xFF]
                 }
             } else {
                 var offset = 0
                 for (i in 0 until numPixels) {
                     val pixel = pixelArray[i]
-                    inputFloatArray[offset++] = ((pixel shr 16) and 0xFF) * inv255
-                    inputFloatArray[offset++] = ((pixel shr 8) and 0xFF) * inv255
-                    inputFloatArray[offset++] = (pixel and 0xFF) * inv255
+                    inputFloatArray[offset++] = NORM_TABLE[(pixel shr 16) and 0xFF]
+                    inputFloatArray[offset++] = NORM_TABLE[(pixel shr 8) and 0xFF]
+                    inputFloatArray[offset++] = NORM_TABLE[pixel and 0xFF]
                 }
             }
             inputByteBuffer.asFloatBuffer().put(inputFloatArray)
@@ -248,7 +251,7 @@ class ObjectDetector internal constructor(
 
         // Decode candidates into reusable pool
         candidatePool.clear()
-        decoder.decode(outputBuffer, outputShape, inputWidth, inputHeight, 0.25f, candidatePool)
+        decoder.decode(outputBuffer, outputShape, inputWidth, inputHeight, confidenceThreshold, candidatePool)
 
         // Run NMS if the decoder is not already End-to-End NMS-free
         nmsPool.clear()
@@ -323,5 +326,9 @@ class ObjectDetector internal constructor(
         if (!letterboxBitmap.isRecycled) {
             letterboxBitmap.recycle()
         }
+    }
+
+    companion object {
+        private val NORM_TABLE = FloatArray(256) { it / 255f }
     }
 }

@@ -102,4 +102,55 @@ class YoloDecodersTest {
         assertEquals(80f, candidates[0].left, 0.01f)
         assertEquals(120f, candidates[0].right, 0.01f)
     }
+
+    @Test
+    fun testYoloV8Decoder_autoNormalizedCoordinates() {
+        // Default constructor uses CoordinateFormat.AUTO
+        val decoder = YoloV8Decoder(isTransposed = true)
+
+        // Coordinates normalized in [0, 1]: cx=0.5, cy=0.5, w=0.2, h=0.2
+        val output = floatArrayOf(
+            0.5f,  // cx
+            0.5f,  // cy
+            0.2f,  // w
+            0.2f,  // h
+            0.95f  // class 0 score
+        )
+        val shape = intArrayOf(1, 5, 1)
+        val candidates = mutableListOf<DetectionCandidate>()
+
+        decoder.decode(output, shape, 640, 640, confidenceThreshold = 0.50f, candidates)
+
+        assertEquals(1, candidates.size)
+        // 0.5 * 640 = 320, w = 0.2 * 640 = 128 -> halfW = 64 -> left = 256, right = 384
+        assertEquals(256f, candidates[0].left, 0.01f)
+        assertEquals(256f, candidates[0].top, 0.01f)
+        assertEquals(384f, candidates[0].right, 0.01f)
+        assertEquals(384f, candidates[0].bottom, 0.01f)
+        assertEquals(0, candidates[0].labelIndex)
+        assertEquals(0.95f, candidates[0].confidence, 0.01f)
+    }
+
+    @Test
+    fun testYolo26EndToEndDecoder_autoNormalizedCoordinates() {
+        // Default constructor uses CoordinateFormat.AUTO
+        val decoder = Yolo26EndToEndDecoder()
+
+        // Normalized coordinates in [0, 1]: [x1, y1, x2, y2, conf, class_id]
+        val output = floatArrayOf(
+            0.1f, 0.2f, 0.5f, 0.6f, 0.90f, 3f
+        )
+        val shape = intArrayOf(1, 1, 6)
+        val candidates = mutableListOf<DetectionCandidate>()
+
+        decoder.decode(output, shape, 640, 640, confidenceThreshold = 0.50f, candidates)
+
+        assertEquals(1, candidates.size)
+        assertEquals(64f, candidates[0].left, 0.01f)
+        assertEquals(128f, candidates[0].top, 0.01f)
+        assertEquals(320f, candidates[0].right, 0.01f)
+        assertEquals(384f, candidates[0].bottom, 0.01f)
+        assertEquals(3, candidates[0].labelIndex)
+        assertEquals(0.90f, candidates[0].confidence, 0.01f)
+    }
 }

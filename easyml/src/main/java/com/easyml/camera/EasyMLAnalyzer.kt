@@ -36,7 +36,11 @@ internal class EasyMLAnalyzer(
 ) : ImageAnalysis.Analyzer {
 
     private val isProcessing = AtomicBoolean(false)
-    private val smoother: DetectionSmoother? = if (enableSmoothing) DetectionSmoother(smoothingFactor) else null
+    private val smoother: DetectionSmoother? = if (enableSmoothing && !detector.isSmoothingEnabled) {
+        DetectionSmoother(smoothingFactor)
+    } else {
+        null
+    }
     private var lastFpsTime = System.currentTimeMillis()
     private var lastAnalyzedFrameTime = 0L
     private var frameCount = 0

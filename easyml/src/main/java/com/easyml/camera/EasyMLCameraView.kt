@@ -6,6 +6,7 @@ import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -169,13 +170,20 @@ fun EasyMLCameraView(
                             it.surfaceProvider = previewView.surfaceProvider
                         }
 
-                        // Hardware-assisted downscaling: ask CameraX to deliver frames matching detector input size
-                        val targetResolution = Size(detector.getInputSize(), detector.getInputSize())
+                        // Hardware-assisted downscaling: CameraX ISP targets 4:3 (e.g. 640x480) with fallback lower
+                        // Prevents CameraX from defaulting to high-res 1080p/4K which causes massive CPU downscaling latency
+                        val targetWidth = detector.inputWidth
+                        val targetHeight = if (detector.inputHeight == detector.inputWidth) {
+                            (targetWidth * 3) / 4
+                        } else {
+                            detector.inputHeight
+                        }
                         val resolutionSelector = ResolutionSelector.Builder()
+                            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
                             .setResolutionStrategy(
                                 ResolutionStrategy(
-                                    targetResolution,
-                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                                    Size(targetWidth, targetHeight),
+                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
                                 )
                             )
                             .build()

@@ -1,6 +1,6 @@
 # 🚀 EasyML — Hardware-Accelerated TFLite & YOLO Engine for Android & Jetpack Compose
 
-[![JitPack](https://img.shields.io/badge/JitPack-v1.6.0-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
+[![JitPack](https://img.shields.io/badge/JitPack-v1.6.1-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Min API](https://img.shields.io/badge/Min%20API-24%2B-brightgreen.svg)](https://developer.android.com/about/dashboards)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Coroutines%20Ready-orange.svg)](https://kotlinlang.org)
@@ -11,7 +11,7 @@
 ---
 
 ## 📌 Table of Contents
-- [✨ What's New in v1.6.0](#-whats-new-in-v160)
+- [✨ What's New in v1.6.1](#-whats-new-in-v161)
 - [🧩 Feature & Model Support Matrix](#-feature--model-support-matrix)
 - [💡 Why EasyML?](#-why-easyml)
 - [⚡ Performance Architecture & Coroutines](#-performance-architecture--coroutines)
@@ -36,8 +36,15 @@
 
 ---
 
-## ✨ What's New in v1.6.0
+## ✨ What's New in v1.6.1
 
+- 🎯 **Automatic Coordinate Space Detection (`CoordinateFormat.AUTO`)**:
+  - Automatically identifies whether your YOLO export (YOLO26, YOLO11, YOLOv8, YOLOv5) outputs normalized coordinates in $[0.0, 1.0]$ or pixel coordinates in $[0, 640]$.
+  - Solves the zero-detections issue where models exporting normalized floats had their bounding boxes collapsed by pixel-space padding subtraction.
+- ⚡ **High-FPS CameraX Pipeline Optimization (30+ FPS)**:
+  - Configured CameraX `ResolutionSelector` with 4:3 `AspectRatioStrategy` and `FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER`. This ensures hardware ISP downscaling to $640\times 480$ rather than falling back to $1080p/4K$ streams that swamp CPU scaling.
+  - Eliminated duplicate EMA temporal smoothing passes between `ObjectDetector` and `EasyMLAnalyzer`.
+  - Added precomputed `NORM_TABLE` lookup array for zero-overhead float pixel normalization.
 - 📦 **Official `kotlinx.serialization` Support**:
   - `Detection`, `DetectionList`, `Classification`, and `InferenceMetrics` are now `@Serializable`.
   - Added dedicated `RectFSerializer` for Android framework `android.graphics.RectF` bounding box coordinates.
@@ -124,7 +131,7 @@ In your `app/build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.yashajagiya:easyml:1.6.0")
+    implementation("com.github.yashajagiya:easyml:1.6.1")
 }
 ```
 
@@ -132,7 +139,7 @@ Or via Version Catalog (`gradle/libs.versions.toml`):
 
 ```toml
 [versions]
-easyml = "1.6.0"
+easyml = "1.6.1"
 
 [libraries]
 easyml = { group = "com.github.yashajagiya", name = "easyml", version.ref = "easyml" }
