@@ -1,4 +1,4 @@
-# 🚀 EasyML — The Complete Developer Guide & Architecture Reference (The EasyML Bible)
+# EasyML — Complete Developer Guide & Architecture Reference
 
 [![JitPack](https://img.shields.io/badge/JitPack-v1.6.1-brightgreen.svg)](https://jitpack.io/#yashajagiya/easyml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -9,14 +9,14 @@
 
 **EasyML** is an ultra-fast, 100% pure Kotlin, hardware-accelerated Machine Learning SDK engineered specifically for **Android**, **Jetpack Compose**, and future **Kotlin Multiplatform (KMP)** workflows.
 
-It provides a unified, production-grade foundation for real-time **YOLO Object Detection (YOLO26, YOLO11, YOLOv8, YOLOv5)**, **Image Classification**, and **Custom TFLite Models** with zero boilerplate, multi-tier hardware acceleration (**GPU FP16 $\to$ NNAPI $\to$ Multi-Core CPU XNNPACK**), full asynchronous coroutines support, dynamic per-class color palettes, class-aware Non-Maximum Suppression (NMS), automatic INT8/UINT8 dequantization, and microsecond-level telemetry.
+It provides a unified, production-grade foundation for real-time **YOLO Object Detection (YOLO26, YOLO11, YOLOv8, YOLOv5)**, **Image Classification**, and **Custom TFLite Models** with zero boilerplate, multi-tier hardware acceleration (**GPU FP16 → NNAPI → Multi-Core CPU XNNPACK**), full asynchronous coroutines support, dynamic per-class color palettes, class-aware Non-Maximum Suppression (NMS), automatic INT8/UINT8 dequantization, and microsecond-level telemetry.
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-1. [🌟 Architectural Highlights & Core Pillars](#-architectural-highlights--core-pillars)
-2. [📦 Complete Installation & All Gradle Configurations](#-complete-installation--all-gradle-configurations)
+1. [Architectural Highlights & Core Pillars](#architectural-highlights--core-pillars)
+2. [Complete Installation & Gradle Configurations](#complete-installation--gradle-configurations)
    - [Method 1: Version Catalog (`libs.versions.toml`) + Kotlin DSL](#method-1-version-catalog-libsversionstoml--kotlin-dsl-recommended)
    - [Method 2: Kotlin DSL Direct (`build.gradle.kts`)](#method-2-kotlin-dsl-direct-buildgradlekts)
    - [Method 3: Groovy DSL (`build.gradle`)](#method-3-groovy-dsl-buildgradle)
@@ -24,16 +24,16 @@ It provides a unified, production-grade foundation for real-time **YOLO Object D
    - [Manifest & Hardware Features](#manifest--hardware-features)
    - [Packaging Options (`noCompress`) for Zero-Copy Memory Mapping](#packaging-options-nocompress-for-zero-copy-memory-mapping)
    - [ProGuard / R8 Rules](#proguard--r8-rules)
-3. [⚡ Direct Implementation (The 5-Line Quick Start)](#-direct-implementation-the-5-line-quick-start)
+3. [Direct Implementation (5-Line Quick Start)](#direct-implementation-5-line-quick-start)
    - [Full Copy-Pasteable Activity](#full-copy-pasteable-activity)
    - [Line-by-Line Technical Breakdown](#line-by-line-technical-breakdown)
-4. [🚀 Asynchronous Coroutines Engine (Complete Async Guide)](#-asynchronous-coroutines-engine-complete-async-guide)
+4. [Asynchronous Coroutines Engine](#asynchronous-coroutines-engine)
    - [1. Asynchronous Model Loading (`loadDetectorAsync`, `loadClassifierAsync`, `loadRawAsync`)](#1-asynchronous-model-loading-loaddetectorasync-loadclassifierasync-loadrawasync)
    - [2. Non-Blocking Object Detection (`detectAsync`)](#2-non-blocking-object-detection-detectasync)
    - [3. Zero-Allocation Asynchronous Detection (`detectAsync` with Reusable Memory)](#3-zero-allocation-asynchronous-detection-detectasync-with-reusable-memory)
    - [4. Asynchronous Image Classification (`classifyAsync`)](#4-asynchronous-image-classification-classifyasync)
    - [5. Asynchronous Raw Model Inference (`runAsync` & `runMultipleAsync`)](#5-asynchronous-raw-model-inference-runasync--runmultipleasync)
-5. [🎨 Custom Implementations: The Deep-Dive Bible](#-custom-implementations-the-deep-dive-bible)
+5. [Custom Implementations: In-Depth Reference](#custom-implementations-in-depth-reference)
    - [1. Dynamic Styling Engine & Custom Canvas Overlays](#1-dynamic-styling-engine--custom-canvas-overlays)
    - [2. Manual Image Inference (Bitmaps, Gallery & Network)](#2-manual-image-inference-bitmaps-gallery--network)
    - [3. Zero-Allocation High-Throughput Memory Recycling](#3-zero-allocation-high-throughput-memory-recycling)
@@ -49,18 +49,18 @@ It provides a unified, production-grade foundation for real-time **YOLO Object D
    - [13. Raw Arbitrary Model Execution (`RawRunner`)](#13-raw-arbitrary-model-execution-rawrunner)
    - [14. JSON Serialization & Remote Streaming (`kotlinx.serialization`)](#14-json-serialization--remote-streaming-kotlinxserialization)
    - [15. Compose Stability & Recomposition Optimization (`DetectionList`)](#15-compose-stability--recomposition-optimization-detectionlist)
-6. [🍳 Production Recipes & End-to-End Real-World Samples](#-production-recipes--end-to-end-real-world-samples)
+6. [Production Recipes & End-to-End Samples](#production-recipes--end-to-end-samples)
    - [Recipe 1: Full-Featured Security Camera with Category Filtering & Camera Flip](#recipe-1-full-featured-security-camera-with-category-filtering--camera-flip)
    - [Recipe 2: Gallery Image Analyzer in MVVM / ViewModel with Async Coroutines](#recipe-2-gallery-image-analyzer-in-mvvm--viewmodel-with-async-coroutines)
    - [Recipe 3: Hazard Alert Sentry with Audio / Haptic Feedback & JSON Streaming](#recipe-3-hazard-alert-sentry-with-audio--haptic-feedback--json-streaming)
-7. [🌐 100% Pure Kotlin & KMP Architecture](#-100-pure-kotlin--kmp-architecture)
-8. [🛠️ Exhaustive API Reference Table](#️-exhaustive-api-reference-table)
-9. [❓ FAQ, Troubleshooting & Performance Gotchas](#-faq-troubleshooting--performance-gotchas)
-10. [📄 License](#-license)
+7. [100% Pure Kotlin & KMP Architecture](#100-pure-kotlin--kmp-architecture)
+8. [Exhaustive API Reference Table](#exhaustive-api-reference-table)
+9. [FAQ, Troubleshooting & Performance Gotchas](#faq-troubleshooting--performance-gotchas)
+10. [License](#license)
 
 ---
 
-## 🌟 Architectural Highlights & Core Pillars
+## Architectural Highlights & Core Pillars
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -118,7 +118,7 @@ It provides a unified, production-grade foundation for real-time **YOLO Object D
 
 ---
 
-## 📦 Complete Installation & All Gradle Configurations
+## Complete Installation & Gradle Configurations
 
 EasyML is distributed through [JitPack](https://jitpack.io/#yashajagiya/easyml).
 
@@ -246,7 +246,7 @@ EasyML includes consumer ProGuard rules automatically inside its `.aar`. If your
 
 ---
 
-## ⚡ Direct Implementation (The 5-Line Quick Start)
+## Direct Implementation (5-Line Quick Start)
 
 Get live camera object detection running in your Jetpack Compose app in seconds.
 
@@ -327,7 +327,7 @@ fun DetectionScreen(modifier: Modifier = Modifier) {
 
 ---
 
-## 🚀 Asynchronous Coroutines Engine (Complete Async Guide)
+## Asynchronous Coroutines Engine
 
 EasyML provides full native support for **Kotlin Coroutines**. All heavy operations (model reading, buffer allocation, image letterboxing, tensor execution, and NMS suppression) can be completely offloaded to background threads to guarantee zero UI stutter.
 
@@ -409,7 +409,7 @@ class PhotoAnalysisViewModel : ViewModel() {
     fun analyzePhoto(bitmap: Bitmap) {
         viewModelScope.launch {
             isAnalyzing.value = true
-            // Dispatches to Dispatchers.Default - main thread remains 100% fluid!
+            // Dispatches to Dispatchers.Default — main thread remains fully responsive
             val results = detector?.detectAsync(bitmap) ?: emptyList()
             detections.value = results
             isAnalyzing.value = false
@@ -485,7 +485,7 @@ viewModelScope.launch {
 
 ---
 
-## 🎨 Custom Implementations: The Deep-Dive Bible
+## Custom Implementations: In-Depth Reference
 
 ### 1. Dynamic Styling Engine & Custom Canvas Overlays
 
@@ -656,13 +656,13 @@ val detectorV5 = EasyML.objectDetector(context) {
 One of the most frequent reasons bounding boxes fail to appear in custom YOLO models is a mismatch in coordinate systems:
 - **`CoordinateFormat.NORMALIZED`**: The model outputs bounding boxes in relative floating-point coordinates $[0.0, 1.0]$. EasyML scales these coordinates by `inputWidth` and `inputHeight`.
 - **`CoordinateFormat.PIXEL_SPACE`**: The model outputs coordinates directly in pixel values $[0, 640]$.
-- **`CoordinateFormat.AUTO` (Default)**: Automatically inspects candidate coordinate magnitudes. If candidate dimensions are $\le 1.5$, it automatically treats them as normalized; otherwise, it handles them as pixel space. This completely eliminates empty-screen bugs when swapping models!
+- **`CoordinateFormat.AUTO` (Default)**: Automatically inspects candidate coordinate magnitudes. If candidate dimensions are $\le 1.5$, it automatically treats them as normalized; otherwise, it handles them as pixel space. This completely eliminates empty-screen bugs when swapping models.
 
 ---
 
 ### 7. Class-Aware vs Class-Agnostic Non-Maximum Suppression (NMS)
 
-In standard class-agnostic NMS, if a bounding box for a "person" overlaps with a bounding box for a "backpack" or "cell phone", the lower-scoring box is discarded!
+In standard class-agnostic NMS, if a bounding box for a "person" overlaps with a bounding box for a "backpack" or "cell phone", the lower-scoring box is discarded.
 
 EasyML defaults to **Class-Aware NMS**:
 - Suppressions are performed strictly within candidates of the same `labelIndex`.
@@ -822,7 +822,7 @@ EasyML provides `@Immutable data class DetectionList(val items: List<Detection>)
 
 ---
 
-## 🍳 Production Recipes & End-to-End Real-World Samples
+## Production Recipes & End-to-End Samples
 
 ### Recipe 1: Full-Featured Security Camera with Category Filtering & Camera Flip
 
@@ -945,7 +945,7 @@ fun processLiveDetections(detections: List<Detection>, webSocketSession: WebSock
 
 ---
 
-## 🌐 100% Pure Kotlin & KMP Architecture
+## 100% Pure Kotlin & KMP Architecture
 
 EasyML is designed from the ground up for modern Kotlin engineering:
 - **Zero Java Code**: Every component (`core`, `detection`, `classification`, `camera`, `raw`) is written in idiomatic Kotlin.
@@ -955,7 +955,7 @@ EasyML is designed from the ground up for modern Kotlin engineering:
 
 ---
 
-## 🛠️ Exhaustive API Reference Table
+## Exhaustive API Reference Table
 
 ### `DetectorConfig` DSL Parameters
 
@@ -996,19 +996,19 @@ EasyML is designed from the ground up for modern Kotlin engineering:
 
 ---
 
-## ❓ FAQ, Troubleshooting & Performance Gotchas
+## FAQ, Troubleshooting & Performance Gotchas
 
 #### Q: My frame rate is stuck at ~5.5 FPS. How do I fix it?
 > **A:** Make sure you are using `device = InferenceDevice.AUTO`. If your model has an NCHW input tensor (`[1, 3, 640, 640]`), TFLite's GPU delegate will fail because it strictly requires NHWC (`[1, 640, 640, 3]`). EasyML's `InferenceDevice.AUTO` automatically falls back to **NNAPI**, which accelerates NCHW models at **30+ FPS** on hardware.
 
 #### Q: Why are my bounding boxes not showing?
-> **A:** 
+> **A:**
 > 1. Verify `confidenceThreshold` is not set too high (start with `0.25f` to `0.40f`).
 > 2. Ensure your model export outputs either normalized coordinates `[0.0, 1.0]` or standard pixel coordinates `[0, 640]`. EasyML's `CoordinateFormat.AUTO` detects this automatically.
 > 3. Verify that your camera frame conversion is delivering an opaque image. In EasyML, this is handled automatically via `ImageUtils.imageProxyToBitmap`.
 
 #### Q: Can two overlapping objects of different classes both be detected?
-> **A:** Yes! EasyML uses **Class-Aware NMS** by default. A person holding a cell phone or wearing a backpack will detect both objects. If you want class-agnostic suppression, set `classAgnosticNms = true`.
+> **A:** Yes. EasyML uses **Class-Aware NMS** by default. A person holding a cell phone or wearing a backpack will detect both objects. If you want class-agnostic suppression, set `classAgnosticNms = true`.
 
 #### Q: How can I export my YOLO model for maximum speed?
 > **A:** In Ultralytics, export using standard TFLite format:
@@ -1019,7 +1019,7 @@ EasyML is designed from the ground up for modern Kotlin engineering:
 
 ---
 
-## 📄 License
+## License
 
 ```text
 Copyright 2026 EasyML Authors
